@@ -1,0 +1,21 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FastAPI + Jekyll</title>
+</head>
+<body>
+  <h1>Hello from the Jekyll frontend</h1>
+  <button onclick="fetchData()">Fetch from FastAPI</button>
+  <pre id="output"></pre>
+
+  <script>
+    async function fetchData() {
+      const res = await fetch("https://your-api-name.onrender.com/hello");
+      const data = await res.json();
+      document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
