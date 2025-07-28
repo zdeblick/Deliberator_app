@@ -14,3 +14,8 @@ app.add_middleware(
 @app.get("/hello")
 def read_root():
     return {"message": "Hello from FastAPI backend!"}
+
+@app.post("/highlight")
+def receive_highlight(hl: Highlight):
+    print(f"Received highlight: '{hl.text}' from {hl.start} to {hl.end}")
+    return {"status": "success", "received": hl.dict()}
