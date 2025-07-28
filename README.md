@@ -28,7 +28,7 @@ fastapi-jekyll-render/
 3. Click **“New Web Service”**
 4. Select your repo (authorize access if needed)
 5. Render will detect `render.yaml` and auto-configure the service
-6. Deploy and copy your backend URL (e.g., `https://your-api-name.onrender.com`)
+6. Deploy and copy your backend URL (e.g., `https://deliberator-app.onrender.com`)
 
 ---
 
@@ -36,7 +36,7 @@ fastapi-jekyll-render/
 
 1. Go to your GitHub repo settings → **Pages**
 2. Set source to `frontend/` folder on the `main` branch
-3. GitHub will deploy your Jekyll site at `https://your-username.github.io/your-repo-name`
+3. GitHub will deploy your Jekyll site at `https://zdeblick.github.io/Deliberator_app`
 
 > NOTE: Edit the URL in `frontend/index.html` to point to your deployed backend.
 
