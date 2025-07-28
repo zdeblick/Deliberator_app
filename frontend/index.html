@@ -12,7 +12,7 @@
 
   <script>
     async function fetchData() {
-      const res = await fetch("https://your-api-name.onrender.com/hello");
+      const res = await fetch("https://deliberator-app.onrender.com/hello");
       const data = await res.json();
       document.getElementById("output").textContent = JSON.stringify(data, null, 2);
     }
