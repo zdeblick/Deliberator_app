@@ -1,19 +1,27 @@
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI()
 
+# Allow frontend to communicate with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # You can restrict this to your frontend domain
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.get("/hello")
-def read_root():
+def hello():
     return {"message": "Hello from FastAPI backend!"}
+
+# Define highlight model
+class Highlight(BaseModel):
+    text: str
+    start: int
+    end: int
 
 @app.post("/highlight")
 def receive_highlight(hl: Highlight):
