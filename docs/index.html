@@ -2,65 +2,187 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>FastAPI + Jekyll</title>
+  <title>Argument Viewer</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .panel {
+      display: flex;
+      gap: 1rem;
+      border: 1px solid #ccc;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .argument-text, .critiques-container {
+      width: 50%;
+      overflow-y: auto;
+      max-height: 200px;
+      padding: 0.5rem;
+      border-radius: 4px;
+    }
+    .argument-text {
+      background: #f9f9f9;
+    }
+    .critiques-container {
+      background: #f1f1ff;
+    }
+    .highlight {
+      background-color: yellow;
+    }
+    .critique {
+      margin-bottom: 0.5rem;
+      padding: 0.3rem;
+      border-radius: 4px;
+    }
+    .critique.highlight {
+      background-color: orange;
+    }
+    button {
+      margin-bottom: 1rem;
+    }
+  </style>
 </head>
 <body>
-  <h1>Hello from the Jekyll frontend</h1>
-
-  <button onclick="fetchHello()">Fetch from FastAPI</button>
-  <pre id="output"></pre>
-
-  <p id="highlightable">
-    This is some sample text you can highlight. Try selecting part of this sentence and then click the "Send Highlight to Backend" button to send the selection.
-  </p>
-
-  <button onclick="getSelectedTextInfo()">Send Highlight to Backend</button>
+  <button onclick="getSelectedTextInfo()">Send Highlight</button>
+  <div id="columns"></div>
 
   <script>
-    // Reusable fetch wrapper
+    // Wrapper for all fetch calls
     async function fetchData(url, options = {}) {
-      const outputEl = document.getElementById("output");
-      outputEl.textContent = "Waking up backend... Please wait ⏳";
-
-      try {
-        const res = await fetch(url, options);
-        const contentType = res.headers.get("content-type");
-
-        let data;
-        if (contentType && contentType.includes("application/json")) {
-          data = await res.json();
-        } else {
-          data = await res.text();
-        }
-
-        return data;
-      } catch (error) {
-        console.error("Error contacting backend:", error);
-        outputEl.textContent = "Error contacting backend: " + error.message;
-        return null;
-      }
+      const response = await fetch(url, options);
+      if (!response.ok) throw new Error("Request failed");
+      return response.json();
     }
 
-    // Show hello message from backend
-    async function fetchHello() {
-      const data = await fetchData("https://deliberator-app.onrender.com/hello");
-      if (data) {
-        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+    // Highlight span insertion
+    function highlightArgumentText(container, critiques) {
+      let text = container.textContent;
+      critiques.sort((a, b) => b[1] - a[1]); // Sort by start index descending
+      for (const [_, start, end] of critiques) {
+        const before = text.slice(0, start);
+        const mid = text.slice(start, end);
+        const after = text.slice(end);
+        text = `${before}<span class="highlight" data-start="${start}" data-end="${end}">${mid}</span>${after}`;
       }
+      container.innerHTML = text;
     }
 
-    // Send highlight data to backend
-    async function getSelectedTextInfo() {
+    // Hover linking
+    function setupHoverEvents(panel, critiques) {
+      const spans = panel.querySelectorAll('.highlight');
+      const critiqueEls = panel.querySelectorAll('.critique');
+
+      spans.forEach(span => {
+        span.addEventListener('mouseenter', () => {
+          const start = span.dataset.start;
+          const end = span.dataset.end;
+          critiqueEls.forEach(el => {
+            if (el.dataset.start === start && el.dataset.end === end) {
+              el.classList.add('highlight');
+            }
+          });
+        });
+        span.addEventListener('mouseleave', () => {
+          critiqueEls.forEach(el => el.classList.remove('highlight'));
+        });
+      });
+
+      critiqueEls.forEach(el => {
+        el.addEventListener('mouseenter', () => {
+          const start = el.dataset.start;
+          const end = el.dataset.end;
+          spans.forEach(span => {
+            if (span.dataset.start === start && span.dataset.end === end) {
+              span.classList.add('highlight');
+            }
+          });
+        });
+        el.addEventListener('mouseleave', () => {
+          spans.forEach(span => span.classList.remove('highlight'));
+        });
+      });
+    }
+
+    // Render function
+    async function loadContent() {
+      const data = await fetchData("https://deliberator-app.onrender.com/arguments");
+      const container = document.getElementById('columns');
+      container.innerHTML = '';
+
+      data.forEach(columnData => {
+        const column = document.createElement('div');
+        column.className = 'column';
+
+        columnData.forEach(panelData => {
+          const panel = document.createElement('div');
+          panel.className = 'panel';
+
+          const argDiv = document.createElement('div');
+          argDiv.className = 'argument-text';
+          argDiv.textContent = panelData.argument;
+
+          const critDiv = document.createElement('div');
+          critDiv.className = 'critiques-container';
+
+          panelData.critiques.forEach(([critText, start, end]) => {
+            const el = document.createElement('div');
+            el.className = 'critique';
+            el.textContent = critText;
+            el.dataset.start = String(start);
+            el.dataset.end = String(end);
+            critDiv.appendChild(el);
+          });
+
+          highlightArgumentText(argDiv, panelData.critiques);
+          panel.appendChild(argDiv);
+          panel.appendChild(critDiv);
+          setupHoverEvents(panel, panelData.critiques);
+          column.appendChild(panel);
+        });
+
+        container.appendChild(column);
+      });
+    }
+
+    // Highlight selection handling
+    function getSelectedTextInfo() {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
         alert("Please highlight some text first.");
         return;
       }
 
-      const selectedText = selection.toString();
       const range = selection.getRangeAt(0);
-      const startOffset = range.startOffset;
-      const endOffset = range.endOffset;
+      const startContainer = range.startContainer;
+      const endContainer = range.endContainer;
+
+      const wrapper = startContainer.parentElement.closest('.argument-text, .critique-text');
+      const endWrapper = endContainer.parentElement.closest('.argument-text, .critique-text');
+
+      if (!wrapper || wrapper !== endWrapper) {
+        alert("Please highlight within a single argument or critique.");
+        return;
+      }
+
+      const containerText = wrapper.innerText;
+      const selectedText = selection.toString();
+      const startOffset = containerText.indexOf(selectedText);
+      const endOffset = startOffset + selectedText.length;
+
+      if (startOffset < 0) {
+        alert("Unable to locate selection in container.");
+        return;
+      }
 
       const payload = {
         text: selectedText,
@@ -68,19 +190,25 @@
         end: endOffset
       };
 
-      console.log("Sending to backend:", payload);
-
-      const response = await fetchData("https://deliberator-app.onrender.com/highlight", {
+      fetchData("https://deliberator-app.onrender.com/highlight", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify(payload)
+      })
+      .then(response => {
+        console.log("Highlight saved:", response);
+        alert("Highlight sent successfully.");
+      })
+      .catch(error => {
+        console.error("Error sending highlight:", error);
+        alert("Failed to send highlight.");
       });
-
-      if (response) {
-        console.log("Response from backend:", response);
-        alert("Highlight sent successfully!");
-      }
     }
+
+    // Initial render
+    loadContent();
   </script>
 </body>
 </html>
