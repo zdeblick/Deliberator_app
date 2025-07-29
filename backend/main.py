@@ -1,64 +1,46 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Tuple
 
 app = FastAPI()
 
-# Allow CORS from your frontend domain (or '*')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust for security in prod
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Model for highlights
-class Highlight(BaseModel):
-    text: str
-    start: int
-    end: int
-
-# Example structured data - replace with your real data or DB
-ARGUMENTS_DATA = [
-    [
-        {
-            "argument": "Climate change is a critical issue that requires urgent action.",
-            "critiques": [
-                ["This is an overstatement.", 0, 14],  # highlights first 14 chars
-                ["Urgent action is politically difficult.", 31, 55]
-            ],
-        },
-        {
-            "argument": "Renewable energy sources are becoming more affordable.",
-            "critiques": []
-        }
+# Sample data structure
+data = [
+    [  # Column 0
+        {"argument": "Cats are independent animals.", "critiques": []},
+        {"argument": "Dogs require more attention but are loyal.", "critiques": []},
     ],
-    [
-        {
-            "argument": "Investing in green tech creates jobs.",
-            "critiques": [
-                ["Depends on the sector.", 11, 25]
-            ],
-        }
+    [  # Column 1
+        {"argument": "Fish are low-maintenance pets.", "critiques": []},
     ]
 ]
 
-# In-memory highlight storage
-HIGHLIGHTS: List[Highlight] = []
+@app.get("/data")
+def get_data():
+    return data
 
-@app.get("/arguments")
-def get_arguments():
-    return ARGUMENTS_DATA
+class HighlightInput(BaseModel):
+    text: str
+    start: int
+    end: int
+    critique: str
 
 @app.post("/highlight")
-def receive_highlight(hl: Highlight):
-    # For now, just store it in memory and print
-    HIGHLIGHTS.append(hl)
-    print(f"Received highlight: '{hl.text}' at {hl.start}-{hl.end}")
-    return {"status": "success", "received": hl.dict()}
-
-@app.get("/")
-def root():
-    return {"message": "FastAPI backend is running."}
+def add_critique(h: HighlightInput):
+    for column in data:
+        for panel in column:
+            arg = panel["argument"]
+            if h.text in arg:
+                start_idx = arg.find(h.text)
+                if start_idx <= h.start and (start_idx + len(h.text)) >= h.end:
+                    panel["critiques"].append([h.critique, h.start, h.end])
+                    return {"status": "success", "panel": arg, "critique": h.critique}
+    return {"status": "error", "message": "Highlight not within a single argument."}
