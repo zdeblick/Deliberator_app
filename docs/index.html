@@ -6,14 +6,9 @@
   <style>
     body {
       display: flex;
-      flex-direction: column;
       gap: 20px;
       padding: 20px;
       font-family: sans-serif;
-    }
-    .columns {
-      display: flex;
-      gap: 20px;
     }
     .column {
       display: flex;
@@ -36,30 +31,29 @@
     .highlight {
       background-color: yellow;
     }
+    .user-highlight {
+      background-color: orange;
+    }
     .critique-item:hover {
       background-color: #ffeaa7;
       cursor: pointer;
     }
-    #input-area {
-      margin-top: 20px;
+    .submit-box {
+      margin-top: 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 5px;
+    }
+    textarea {
+      width: 100%;
+      height: 50px;
     }
   </style>
 </head>
 <body>
-  <div class="columns" id="content"></div>
-  <div id="input-area">
-    <textarea id="critiqueInput" placeholder="Enter your critique here..."></textarea>
-    <button id="submitCritique">Submit Critique</button>
-  </div>
-
   <script>
     const backendURL = "https://deliberator-app.onrender.com";
-
     let currentHighlight = null;
-    let argumentMap = new Map();
 
     async function fetchData(endpoint) {
       try {
@@ -73,9 +67,6 @@
     }
 
     function renderData(data) {
-      const container = document.getElementById("content");
-      container.innerHTML = "";
-
       data.forEach(col => {
         const columnEl = document.createElement('div');
         columnEl.className = 'column';
@@ -88,8 +79,7 @@
           argDiv.className = 'argument';
           const rawArg = panelData.argument;
 
-          const spanMap = {}; // key = index, value = span element
-
+          const spanMap = {};
           for (let i = 0; i < rawArg.length; i++) {
             const span = document.createElement('span');
             span.textContent = rawArg[i];
@@ -101,8 +91,7 @@
           const critDiv = document.createElement('div');
           critDiv.className = 'critiques';
 
-          panelData.critiques.forEach((c, idx) => {
-            const [text, start, end] = c;
+          panelData.critiques.forEach(([text, start, end], idx) => {
             const item = document.createElement('div');
             item.className = 'critique-item';
             item.textContent = text;
@@ -122,7 +111,6 @@
             critDiv.appendChild(item);
           });
 
-          // Argument to critique hover (reverse mapping)
           Object.keys(spanMap).forEach(i => {
             const span = spanMap[i];
             span.addEventListener('mouseenter', () => {
@@ -141,72 +129,32 @@
             });
           });
 
-          // Capture argument data
-          argumentMap.set(argDiv, rawArg);
+          // Submission UI
+          const submitBox = document.createElement('div');
+          submitBox.className = 'submit-box';
 
-          // Highlight logic
+          const textarea = document.createElement('textarea');
+          const submitBtn = document.createElement('button');
+          submitBtn.textContent = 'Submit Critique';
+
+          let selectedRange = null;
+
           argDiv.addEventListener('mouseup', () => {
             const selection = window.getSelection();
             if (selection.rangeCount === 0) return;
             const range = selection.getRangeAt(0);
-            if (!argDiv.contains(range.startContainer) || !argDiv.contains(range.endContainer)) return;
+            if (!argDiv.contains(range.commonAncestorContainer)) return;
 
-            let startIdx = parseInt(range.startContainer.parentElement?.dataset.index || 0);
-            let endIdx = parseInt(range.endContainer.parentElement?.dataset.index || 0) + 1;
-            if (startIdx > endIdx) [startIdx, endIdx] = [endIdx, startIdx];
+            // Clear any previous user highlights
+            Object.values(spanMap).forEach(span => span.classList.remove('user-highlight'));
 
-            currentHighlight = {
-              argumentText: rawArg,
-              start: startIdx,
-              end: endIdx
-            };
-          });
+            let start = parseInt(range.startContainer.dataset.index || range.startContainer.parentElement?.dataset.index);
+            let end = parseInt(range.endContainer.dataset.index || range.endContainer.parentElement?.dataset.index) + 1;
 
-          panel.appendChild(argDiv);
-          panel.appendChild(critDiv);
-          columnEl.appendChild(panel);
-        });
+            if (isNaN(start) || isNaN(end) || start >= end) {
+              selectedRange = null;
+              return;
+            }
 
-        container.appendChild(columnEl);
-      });
-    }
-
-    document.getElementById("submitCritique").addEventListener("click", async () => {
-      const critiqueText = document.getElementById("critiqueInput").value.trim();
-      if (!critiqueText) {
-        alert("Please enter a critique.");
-        return;
-      }
-      if (!currentHighlight) {
-        alert("Please highlight some text in an argument before submitting.");
-        return;
-      }
-
-      const payload = {
-        argument: currentHighlight.argumentText,
-        critique: critiqueText,
-        start: currentHighlight.start,
-        end: currentHighlight.end
-      };
-
-      try {
-        const res = await fetch(`${backendURL}/submit`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error("Submission failed");
-        location.reload();
-      } catch (err) {
-        console.error("Error submitting critique:", err);
-        alert("Failed to submit critique.");
-      }
-    });
-
-    // Load data
-    fetchData("/data").then(data => {
-      if (data) renderData(data);
-    });
-  </script>
-</body>
-</html>
+            for (let i = start; i < end; i++) {
+              spanMap[i]?.classList.add('user-highlig
