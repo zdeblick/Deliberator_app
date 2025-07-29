@@ -1,57 +1,47 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+# Allow frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Change to your frontend domain in production
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initial sample data structure (list of columns, each with list of panels)
+# Sample data structure
 data = [
-    [  # Column 1
+    [
         {
-            "argument": "Climate change is accelerating due to human activity.",
-            "critiques": [
-                ["This claim lacks a specific citation.", 0, 41]
-            ],
+            "argument": "The Earth is warming due to human activity.",
+            "critiques": [["This claim is supported by consensus.", 0, 15]]
         },
         {
-            "argument": "Governments should invest in renewable energy to combat climate change.",
-            "critiques": [],
-        },
-    ],
-    [  # Column 2
-        {
-            "argument": "Some argue that economic growth should not be sacrificed for environmental policies.",
-            "critiques": [],
+            "argument": "Renewable energy sources are more sustainable long-term.",
+            "critiques": []
         }
-    ],
+    ]
 ]
 
 class CritiquePayload(BaseModel):
-    text: str
+    argument_text: str
+    critique: str
     start: int
     end: int
-    critique: str
 
-@app.get("/arguments")
-def get_arguments():
+@app.get("/data")
+def get_data():
     return data
 
-@app.post("/highlight")
-def add_critique(payload: CritiquePayload):
+@app.post("/submit")
+def submit_critique(payload: CritiquePayload):
     for column in data:
         for panel in column:
-            arg = panel["argument"]
-            # Check if highlighted text is a substring of argument at given indices
-            if payload.text == arg[payload.start : payload.end]:
-                # Just append, no duplicate check
+            if panel["argument"] == payload.argument_text:
                 panel["critiques"].append([payload.critique, payload.start, payload.end])
                 return {"status": "success"}
-    return {"status": "error", "message": "Matching argument not found."}
-
+    raise HTTPException(status_code=404, detail="Matching argument not found.")
