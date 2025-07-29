@@ -31,6 +31,7 @@
       flex: 2;
       white-space: pre-wrap;
       position: relative;
+      user-select: text;
     }
     .critiques {
       flex: 1;
@@ -108,7 +109,6 @@
     const API_BASE = "https://deliberator-app.onrender.com";
     let currentHighlight = null;
 
-    // Simple fetch helper
     async function fetchData(url, method = "GET", body = null) {
       const res = await fetch(API_BASE + url, {
         method,
@@ -119,7 +119,6 @@
       return res.json();
     }
 
-    // Remove temp or perm highlights by class name
     function clearHighlights(className = "highlight-temp") {
       document.querySelectorAll(`.${className}`).forEach((hl) => {
         const parent = hl.parentNode;
@@ -128,11 +127,15 @@
       });
     }
 
-    // Wrap text from start to end inside a span with class and optional data attributes
     function highlightRange(argElem, start, end, className = "highlight-temp", dataset = {}) {
       const range = document.createRange();
+
+      // If argElem contains multiple nodes (like spans), find the correct text nodes and wrap just the text from start to end
+      // For simplicity: assume argElem.textContent is a single string, and its firstChild is a single text node
+      // If your argElem becomes more complex, you'll need a more sophisticated function.
+
       const textNode = argElem.firstChild;
-      if (!textNode || argElem.childNodes.length > 1 || textNode.nodeType !== Node.TEXT_NODE) return null;
+      if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return null;
 
       const span = document.createElement("span");
       span.className = className;
@@ -147,6 +150,40 @@
       return span;
     }
 
+    // NEW helper to get selection offsets RELATIVE to argument container's full text content
+    function getRelativeSelectionOffsets(container) {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return null;
+
+      const range = selection.getRangeAt(0);
+
+      // Make sure selection is fully inside container
+      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+        return null;
+      }
+
+      function getCharOffset(node, offset) {
+        let charCount = 0;
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+        while (walker.nextNode()) {
+          const currentNode = walker.currentNode;
+          if (currentNode === node) {
+            return charCount + offset;
+          }
+          charCount += currentNode.textContent.length;
+        }
+        return -1;
+      }
+
+      const start = getCharOffset(range.startContainer, range.startOffset);
+      const end = getCharOffset(range.endContainer, range.endOffset);
+
+      if (start === -1 || end === -1 || start >= end) return null;
+
+      const text = container.textContent.slice(start, end);
+      return { start, end, text };
+    }
+
     // Clear old temp highlight, then create new temp highlight for user selection
     function handleUserHighlight() {
       clearHighlights("highlight-temp");
@@ -154,25 +191,26 @@
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) return null;
 
-      const range = selection.getRangeAt(0);
-      const startOffset = range.startOffset;
-      const endOffset = range.endOffset;
-
-      // Only allow highlighting within a single argument container
-      const container = range.startContainer.parentElement.closest(".arg-text");
-      if (!container || range.startContainer !== range.endContainer) {
-        alert("Highlight must be within a single argument.");
+      const container = selection.anchorNode.parentElement.closest(".arg-text");
+      if (!container) {
+        alert("Please select text within a single argument.");
         return null;
       }
 
-      const selectedText = selection.toString();
-      const span = highlightRange(container, startOffset, endOffset, "highlight-temp");
+      const offsets = getRelativeSelectionOffsets(container);
+      if (!offsets) {
+        alert("Selection must be fully within a single argument.");
+        return null;
+      }
 
-      currentHighlight = { span, container, selectedText, start: startOffset, end: endOffset };
+      const { start, end, text } = offsets;
+      const span = highlightRange(container, start, end, "highlight-temp");
+      if (!span) return null;
+
+      currentHighlight = { container, start, end, selectedText: text, span };
       return currentHighlight;
     }
 
-    // Sync hover highlight between argument highlight and critique div
     function addHoverSync(hlElem, critElem) {
       function enter() {
         hlElem.classList.add("hovered");
@@ -188,7 +226,6 @@
       critElem.addEventListener("mouseleave", leave);
     }
 
-    // Render data from backend
     async function loadData() {
       const data = await fetchData("/arguments");
       const container = document.getElementById("container");
@@ -214,7 +251,6 @@
             critElem.className = "critique";
             critElem.textContent = critText;
 
-            // Add permanent highlight with data attributes
             const hl = highlightRange(argDiv, start, end, "highlight-perm", {
               start,
               end,
@@ -237,12 +273,10 @@
       });
     }
 
-    // On mouseup (text selection ends), create or update temp highlight
     document.addEventListener("mouseup", () => {
       handleUserHighlight();
     });
 
-    // Submit critique button logic
     document.getElementById("submitCritique").addEventListener("click", async () => {
       const critiqueText = document.getElementById("critiqueInput").value.trim();
       if (!critiqueText) {
@@ -264,18 +298,9 @@
       try {
         const res = await fetchData("/highlight", "POST", payload);
         if (res.status === "success") {
-          // Clear temp highlight and input
           clearHighlights("highlight-temp");
-          // Add permanent highlight
-          highlightRange(
-            currentHighlight.container,
-            currentHighlight.start,
-            currentHighlight.end,
-            "highlight-perm"
-          );
           currentHighlight = null;
           document.getElementById("critiqueInput").value = "";
-          // Reload all data to reflect new critique
           await loadData();
         } else if (res.status === "duplicate") {
           alert("This critique already exists.");
@@ -288,9 +313,7 @@
       }
     });
 
-    // Initial data load
     loadData();
   </script>
-
 </body>
 </html>
