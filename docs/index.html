@@ -272,7 +272,8 @@
 </head>
 <body>
     <div class="container">
-        <h1 style="text-align: center; margin-bottom: 30px; color: #333;">Arguments and Critiques</h1>
+        <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Arguments and Critiques</h1>
+        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 12px;">Version 1.1</div>
         
         <div class="controls">
             <button class="btn" onclick="showArgumentModal()">Add Argument</button>
@@ -568,190 +569,131 @@
                 return;
             }
 
+            const selectedString = selection.toString().trim();
             const range = selection.getRangeAt(0);
             
-            // Find the argument section that contains the selection
-            let argumentSection = null;
-            let currentNode = range.commonAncestorContainer;
+            // Find the closest panel containing the selection
+            let panel = null;
+            let node = range.commonAncestorContainer;
             
-            // Walk up the DOM tree to find the argument section
-            while (currentNode && currentNode !== document) {
-                if (currentNode.classList && currentNode.classList.contains('argument-section')) {
-                    argumentSection = currentNode;
+            // Walk up to find panel
+            while (node && node !== document.body) {
+                if (node.classList && node.classList.contains('panel')) {
+                    panel = node;
                     break;
                 }
-                if (currentNode.closest && currentNode.closest('.argument-section')) {
-                    argumentSection = currentNode.closest('.argument-section');
+                if (node.parentNode) {
+                    node = node.parentNode;
+                } else {
                     break;
                 }
-                currentNode = currentNode.parentNode;
             }
-
+            
+            if (!panel) {
+                selectedText = null;
+                return;
+            }
+            
+            // Check if selection is within argument section
+            const argumentSection = panel.querySelector('.argument-section');
             if (!argumentSection) {
                 selectedText = null;
                 return;
             }
-
-            const panel = argumentSection.closest('.panel');
-            if (!panel) {
+            
+            // Check if the selection intersects with the argument section
+            if (!argumentSection.contains(range.commonAncestorContainer) && 
+                !range.intersectsNode(argumentSection)) {
                 selectedText = null;
                 return;
             }
 
             const columnIndex = parseInt(panel.dataset.columnIndex);
             const panelIndex = parseInt(panel.dataset.panelIndex);
-
-            // Get the argument text element
-            const argumentTextElement = argumentSection.querySelector('.argument-text');
-            if (!argumentTextElement) {
+            
+            if (isNaN(columnIndex) || isNaN(panelIndex)) {
                 selectedText = null;
                 return;
             }
 
-            // Calculate character positions relative to the plain text
-            const selectedTextContent = selection.toString().trim();
-            const fullText = data[columnIndex][panelIndex].argument;
+            // Get the original argument text
+            const originalText = data[columnIndex][panelIndex].argument;
             
-            // Get all text nodes in the argument text element
-            const textNodes = [];
-            const walker = document.createTreeWalker(
-                argumentTextElement,
-                NodeFilter.SHOW_TEXT,
-                null,
-                false
-            );
-            
-            let node;
-            while (node = walker.nextNode()) {
-                textNodes.push(node);
-            }
-
-            // Find the start and end positions in the original text
-            let currentPosition = 0;
+            // Find the selected text in the original argument
+            // Try multiple approaches to find the correct position
             let startIndex = -1;
             let endIndex = -1;
-            let foundStart = false;
-            let foundEnd = false;
-
-            for (let textNode of textNodes) {
-                const nodeText = textNode.textContent;
-                const nodeLength = nodeText.length;
+            
+            // Method 1: Direct string search
+            startIndex = originalText.indexOf(selectedString);
+            if (startIndex !== -1) {
+                endIndex = startIndex + selectedString.length;
+            } else {
+                // Method 2: Clean and retry (remove extra whitespace)
+                const cleanSelected = selectedString.replace(/\s+/g, ' ');
+                const cleanOriginal = originalText.replace(/\s+/g, ' ');
+                const cleanIndex = cleanOriginal.indexOf(cleanSelected);
                 
-                // Check if this node contains the start of the selection
-                if (!foundStart && range.startContainer === textNode) {
-                    startIndex = currentPosition + range.startOffset;
-                    foundStart = true;
-                }
-                
-                // Check if this node contains the end of the selection
-                if (!foundEnd && range.endContainer === textNode) {
-                    endIndex = currentPosition + range.endOffset;
-                    foundEnd = true;
-                }
-                
-                // If we're looking for start/end in different nodes
-                if (!foundStart && range.startContainer.parentNode && 
-                    textNode.parentNode.contains(range.startContainer)) {
-                    // Complex case - selection spans multiple elements
-                    const nodeRange = document.createRange();
-                    nodeRange.selectNodeContents(textNode);
-                    if (range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0 &&
-                        range.compareBoundaryPoints(Range.START_TO_END, nodeRange) >= 0) {
-                        startIndex = currentPosition;
-                        foundStart = true;
+                if (cleanIndex !== -1) {
+                    // Map back to original text positions
+                    let originalPos = 0;
+                    let cleanPos = 0;
+                    
+                    // Find start position
+                    while (cleanPos < cleanIndex && originalPos < originalText.length) {
+                        if (originalText[originalPos].match(/\s/)) {
+                            originalPos++;
+                            if (cleanOriginal[cleanPos] === ' ') cleanPos++;
+                        } else {
+                            originalPos++;
+                            cleanPos++;
+                        }
                     }
+                    startIndex = originalPos;
+                    
+                    // Find end position
+                    let remainingLength = cleanSelected.length;
+                    while (remainingLength > 0 && originalPos < originalText.length) {
+                        if (originalText[originalPos].match(/\s/)) {
+                            originalPos++;
+                            if (remainingLength > 0 && cleanSelected[cleanSelected.length - remainingLength] === ' ') {
+                                remainingLength--;
+                            }
+                        } else {
+                            originalPos++;
+                            remainingLength--;
+                        }
+                    }
+                    endIndex = originalPos;
                 }
-                
-                currentPosition += nodeLength;
-                
-                if (foundStart && foundEnd) break;
             }
-
-            // Fallback: try to find the text by content matching
-            if (startIndex === -1 || endIndex === -1) {
-                const plainTextContent = argumentTextElement.textContent;
-                const selectionStart = plainTextContent.indexOf(selectedTextContent);
-                if (selectionStart !== -1) {
-                    startIndex = selectionStart;
-                    endIndex = selectionStart + selectedTextContent.length;
-                }
-            }
-
+            
             // Validate the selection
             if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
                 selectedText = null;
+                console.log('Text selection failed: could not find text in original argument');
                 return;
             }
-
-            // Double-check that our indices match the selected text
-            const extractedText = fullText.substring(startIndex, endIndex);
-            if (extractedText !== selectedTextContent) {
-                // Try one more fallback approach
-                let bestMatch = -1;
-                let bestScore = 0;
-                
-                for (let i = 0; i <= fullText.length - selectedTextContent.length; i++) {
-                    const candidate = fullText.substring(i, i + selectedTextContent.length);
-                    if (candidate === selectedTextContent) {
-                        bestMatch = i;
-                        break;
-                    }
-                    // Fuzzy matching as last resort
-                    const score = similarity(candidate, selectedTextContent);
-                    if (score > bestScore && score > 0.9) {
-                        bestScore = score;
-                        bestMatch = i;
-                    }
-                }
-                
-                if (bestMatch === -1) {
-                    selectedText = null;
-                    return;
-                }
-                
-                startIndex = bestMatch;
-                endIndex = bestMatch + selectedTextContent.length;
+            
+            // Double check the extracted text matches
+            const extractedText = originalText.substring(startIndex, endIndex);
+            if (extractedText.replace(/\s+/g, ' ').trim() !== selectedString.replace(/\s+/g, ' ').trim()) {
+                selectedText = null;
+                console.log('Text selection failed: extracted text does not match selected text');
+                console.log('Selected:', selectedString);
+                console.log('Extracted:', extractedText);
+                return;
             }
 
             selectedText = {
                 columnIndex,
                 panelIndex,
-                text: selectedTextContent,
+                text: selectedString,
                 startIndex,
                 endIndex
             };
-        }
-
-        // Simple similarity function for fuzzy matching
-        function similarity(s1, s2) {
-            const longer = s1.length > s2.length ? s1 : s2;
-            const shorter = s1.length > s2.length ? s2 : s1;
-            const editDistance = levenshteinDistance(longer, shorter);
-            return (longer.length - editDistance) / longer.length;
-        }
-
-        function levenshteinDistance(str1, str2) {
-            const matrix = [];
-            for (let i = 0; i <= str2.length; i++) {
-                matrix[i] = [i];
-            }
-            for (let j = 0; j <= str1.length; j++) {
-                matrix[0][j] = j;
-            }
-            for (let i = 1; i <= str2.length; i++) {
-                for (let j = 1; j <= str1.length; j++) {
-                    if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-                        matrix[i][j] = matrix[i - 1][j - 1];
-                    } else {
-                        matrix[i][j] = Math.min(
-                            matrix[i - 1][j - 1] + 1,
-                            matrix[i][j - 1] + 1,
-                            matrix[i - 1][j] + 1
-                        );
-                    }
-                }
-            }
-            return matrix[str2.length][str1.length];
+            
+            console.log('Text selected successfully:', selectedText);
         }
 
         function populateColumnOptions() {
