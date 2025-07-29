@@ -67,11 +67,21 @@
     }
 
     function renderData(data) {
+      if (!Array.isArray(data)) {
+        console.error("Invalid data format:", data);
+        return;
+      }
+
       data.forEach(col => {
         const columnEl = document.createElement('div');
         columnEl.className = 'column';
 
         col.forEach(panelData => {
+          if (!panelData.argument || !Array.isArray(panelData.critiques)) {
+            console.warn("Skipping malformed panelData:", panelData);
+            return;
+          }
+
           const panel = document.createElement('div');
           panel.className = 'panel';
 
@@ -145,7 +155,6 @@
             const range = selection.getRangeAt(0);
             if (!argDiv.contains(range.commonAncestorContainer)) return;
 
-            // Clear any previous user highlights
             Object.values(spanMap).forEach(span => span.classList.remove('user-highlight'));
 
             let start = parseInt(range.startContainer.dataset.index || range.startContainer.parentElement?.dataset.index);
@@ -157,4 +166,91 @@
             }
 
             for (let i = start; i < end; i++) {
-              spanMap[i]?.classList.add('user-highlig
+              spanMap[i]?.classList.add('user-highlight');
+            }
+
+            currentHighlight = { start, end };
+            selectedRange = { start, end };
+          });
+
+          submitBtn.addEventListener('click', async () => {
+            const critique = textarea.value.trim();
+            if (!selectedRange || critique === "") {
+              alert("Please highlight some text in an argument and enter a critique before submitting.");
+              return;
+            }
+
+            const payload = {
+              argument_text: rawArg,
+              critique,
+              start: selectedRange.start,
+              end: selectedRange.end
+            };
+
+            try {
+              const res = await fetch(`${backendURL}/submit`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+              });
+
+              if (!res.ok) {
+                throw new Error("Failed to submit");
+              }
+
+              // Add to display without reload
+              panelData.critiques.push([critique, selectedRange.start, selectedRange.end]);
+
+              const item = document.createElement('div');
+              item.className = 'critique-item';
+              item.textContent = critique;
+              item.addEventListener('mouseenter', () => {
+                for (let i = selectedRange.start; i < selectedRange.end; i++) {
+                  spanMap[i]?.classList.add('highlight');
+                }
+              });
+              item.addEventListener('mouseleave', () => {
+                for (let i = selectedRange.start; i < selectedRange.end; i++) {
+                  spanMap[i]?.classList.remove('highlight');
+                }
+              });
+              critDiv.appendChild(item);
+
+              textarea.value = "";
+              Object.values(spanMap).forEach(span => span.classList.remove('user-highlight'));
+              currentHighlight = null;
+              selectedRange = null;
+            } catch (err) {
+              console.error("Error submitting critique:", err);
+              alert("Submission failed.");
+            }
+          });
+
+          submitBox.appendChild(textarea);
+          submitBox.appendChild(submitBtn);
+
+          const wrapper = document.createElement('div');
+          wrapper.style.display = "flex";
+          wrapper.style.flexDirection = "column";
+          wrapper.appendChild(argDiv);
+          wrapper.appendChild(submitBox);
+
+          panel.appendChild(wrapper);
+          panel.appendChild(critDiv);
+          columnEl.appendChild(panel);
+        });
+
+        document.body.appendChild(columnEl);
+      });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchData("/data").then(data => {
+        if (data) renderData(data);
+      });
+    });
+  </script>
+</body>
+</html>
