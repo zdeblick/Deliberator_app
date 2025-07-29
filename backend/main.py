@@ -1,11 +1,9 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
 
 app = FastAPI()
 
-# Allow frontend access (update if needed for security)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,7 +11,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Example data structure
+# Initial sample data structure (list of columns, each with list of panels)
 data = [
     [  # Column 1
         {
@@ -25,14 +23,14 @@ data = [
         {
             "argument": "Governments should invest in renewable energy to combat climate change.",
             "critiques": [],
-        }
+        },
     ],
     [  # Column 2
         {
             "argument": "Some argue that economic growth should not be sacrificed for environmental policies.",
             "critiques": [],
         }
-    ]
+    ],
 ]
 
 class CritiquePayload(BaseModel):
@@ -50,12 +48,16 @@ def add_critique(payload: CritiquePayload):
     for column in data:
         for panel in column:
             arg = panel["argument"]
-            # Check if the selected text matches part of the argument
-            if payload.text == arg[payload.start:payload.end]:
-                # Avoid duplicates
-                for existing in panel["critiques"]:
-                    if existing[1] == payload.start and existing[2] == payload.end and existing[0] == payload.critique:
-                        return {"message": "Duplicate critique ignored."}
+            # Check if selected text matches argument substring exactly
+            if payload.text == arg[payload.start : payload.end]:
+                # Prevent exact duplicate critique on same range
+                if any(
+                    existing[0] == payload.critique
+                    and existing[1] == payload.start
+                    and existing[2] == payload.end
+                    for existing in panel["critiques"]
+                ):
+                    return {"status": "duplicate"}
                 panel["critiques"].append([payload.critique, payload.start, payload.end])
-                return {"message": "Critique added."}
-    return {"error": "Matching argument not found."}
+                return {"status": "success"}
+    return {"status": "error", "message": "Matching argument not found."}
