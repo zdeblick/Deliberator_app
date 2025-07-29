@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,55 +6,57 @@
 </head>
 <body>
   <h1>Hello from the Jekyll frontend</h1>
-  <button onclick="fetchData()">Fetch from FastAPI</button>
+
+  <button onclick="fetchHello()">Fetch from FastAPI</button>
   <pre id="output"></pre>
 
-<script>
-  async function fetchData() {
-    const res = await fetch("https://deliberator-app.onrender.com/hello");
-    const data = await res.json();
-    document.getElementById("output").textContent = JSON.stringify(data, null, 2);
-  }
-    
-  function getSelectedTextInfo() {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      alert("Please highlight some text first.");
-      return;
+  <p id="highlightable">
+    This is some sample text you can highlight. Try selecting part of this sentence and then click the "Send Highlight to Backend" button to send the selection.
+  </p>
+
+  <button onclick="getSelectedTextInfo()">Send Highlight to Backend</button>
+
+  <script>
+    // Enhanced fetch function to show loading message
+    async function fetchData(url, options = {}, outputId = "output") {
+      const outputEl = document.getElementById(outputId);
+      if (outputEl) {
+        outputEl.textContent = "Waking up backend... Please wait ⏳";
+      }
+
+      try {
+        const res = await fetch(url, options);
+        const contentType = res.headers.get("content-type");
+
+        let data;
+        if (contentType && contentType.includes("application/json")) {
+          data = await res.json();
+        } else {
+          data = await res.text();
+        }
+
+        if (outputEl) {
+          outputEl.textContent = typeof data === "string"
+            ? data
+            : JSON.stringify(data, null, 2);
+        }
+
+        return data;
+      } catch (error) {
+        if (outputEl) {
+          outputEl.textContent = "Error contacting backend: " + error.message;
+        }
+        console.error(error);
+      }
     }
 
-    const selectedText = selection.toString();
-    const range = selection.getRangeAt(0);
-    const startOffset = range.startOffset;
-    const endOffset = range.endOffset;
+    // Fetch from /hello endpoint
+    function fetchHello() {
+      fetchData("https://deliberator-app.onrender.com/hello");
+    }
 
-    const payload = {
-      text: selectedText,
-      start: startOffset,
-      end: endOffset
-    };
-
-    console.log("Sending to backend:", payload);
-
-    fetch("https://deliberator-app.onrender.com/highlight", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log("Response from backend:", data);
-      alert("Highlight sent successfully!");
-    })
-    .catch(error => {
-      console.error("Error:", error);
-    });
-  }
-</script>
-
-<!-- Add a button to trigger it -->
-<button onclick="getSelectedTextInfo()">Send Highlight to Backend</button>
-</body>
-</html>
+    // Send highlight info to backend
+    function getSelectedTextInfo() {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        alert("Please highlight some text first.");
