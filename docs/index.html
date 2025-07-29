@@ -1,109 +1,614 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Tuple
-import uvicorn
-
-app = FastAPI()
-
-# Enable CORS for GitHub Pages
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Data structure: List[List[Dict]]
-# Each dict: {'argument': str, 'critiques': List[List[str, int, int]]}
-data = [
-    [  # Column 1
-        {
-            'argument': 'Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.',
-            'critiques': [
-                ['The scientific consensus claim needs more specific evidence', 85, 120],
-                ['What about natural climate variations?', 0, 27]
-            ]
-        },
-        {
-            'argument': 'Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.',
-            'critiques': [
-                ['Reliability issues during peak demand periods', 77, 85],
-                ['Storage costs not included in analysis', 50, 77]
-            ]
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arguments and Critiques</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    ],
-    [  # Column 2
-        {
-            'argument': 'Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.',
-            'critiques': [
-                ['Wait times can be problematic', 91, 130],
-                ['Different countries have different contexts', 132, 162]
-            ]
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
         }
-    ],
-    [  # Column 3
-        {
-            'argument': 'Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.',
-            'critiques': [
-                ['Risk of reducing human interaction', 74, 101],
-                ['Privacy concerns with student data', 102, 141]
-            ]
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
         }
-    ]
-]
 
-class NewArgument(BaseModel):
-    column_index: int
-    argument: str
+        .columns {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
 
-class NewCritique(BaseModel):
-    column_index: int
-    panel_index: int
-    critique_text: str
-    start_ind: int
-    end_ind: int
+        .column {
+            min-width: 400px;
+            background-color: #e8e8e8;
+            border-radius: 8px;
+            padding: 15px;
+        }
 
-@app.get("/data")
-async def get_data():
-    """Return the full data structure"""
-    return data
+        .column-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            padding: 10px;
+            background-color: #d0d0d0;
+            border-radius: 5px;
+        }
 
-@app.post("/argument")
-async def add_argument(new_arg: NewArgument):
-    """Add a new argument to specified column"""
-    if new_arg.column_index < 0 or new_arg.column_index >= len(data):
-        raise HTTPException(status_code=400, detail="Invalid column index")
-    
-    new_panel = {
-        'argument': new_arg.argument,
-        'critiques': []
-    }
-    
-    data[new_arg.column_index].append(new_panel)
-    return {"message": "Argument added successfully"}
+        .panel {
+            background-color: white;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            min-height: 200px;
+        }
 
-@app.post("/critique")
-async def add_critique(new_crit: NewCritique):
-    """Add a new critique to specified argument"""
-    if new_crit.column_index < 0 or new_crit.column_index >= len(data):
-        raise HTTPException(status_code=400, detail="Invalid column index")
-    
-    column = data[new_crit.column_index]
-    if new_crit.panel_index < 0 or new_crit.panel_index >= len(column):
-        raise HTTPException(status_code=400, detail="Invalid panel index")
-    
-    panel = column[new_crit.panel_index]
-    
-    # Validate indices
-    if new_crit.start_ind < 0 or new_crit.end_ind > len(panel['argument']) or new_crit.start_ind >= new_crit.end_ind:
-        raise HTTPException(status_code=400, detail="Invalid text indices")
-    
-    critique = [new_crit.critique_text, new_crit.start_ind, new_crit.end_ind]
-    panel['critiques'].append(critique)
-    
-    return {"message": "Critique added successfully"}
+        .argument-section {
+            flex: 1;
+            border-right: 2px solid #eee;
+            padding-right: 15px;
+        }
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        .argument-text {
+            line-height: 1.6;
+            cursor: default;
+        }
+
+        .critiques-section {
+            flex: 1;
+            padding-left: 15px;
+        }
+
+        .critiques-container {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+
+        .critique {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border-left: 3px solid #007acc;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .critique:hover {
+            background-color: #e6f3ff;
+            border-left-color: #0056b3;
+            box-shadow: 0 2px 8px rgba(0,122,204,0.3);
+        }
+
+        .highlighted-text {
+            background-color: #fff3cd;
+            border-radius: 2px;
+            padding: 1px 2px;
+            transition: all 0.2s ease;
+        }
+
+        .highlighted-text:hover {
+            background-color: #ffeaa7;
+            box-shadow: 0 0 8px rgba(255,193,7,0.6);
+        }
+
+        .highlighted-text.glow {
+            background-color: #ffeaa7;
+            box-shadow: 0 0 8px rgba(255,193,7,0.6);
+        }
+
+        .critique.glow {
+            background-color: #e6f3ff;
+            border-left-color: #0056b3;
+            box-shadow: 0 2px 8px rgba(0,122,204,0.3);
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+        }
+
+        .modal-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-actions {
+            text-align: right;
+            margin-top: 20px;
+        }
+
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .selection-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 30px; color: #333;">Arguments and Critiques</h1>
+        
+        <div class="controls">
+            <button class="btn" onclick="showArgumentModal()">Add Argument</button>
+            <button class="btn" onclick="showCritiqueModal()">Add Critique</button>
+        </div>
+
+        <div class="columns" id="columns">
+            <!-- Columns will be dynamically populated -->
+        </div>
+    </div>
+
+    <!-- Add Argument Modal -->
+    <div id="argumentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('argumentModal')">&times;</span>
+            <div class="modal-header">Add New Argument</div>
+            <div id="argumentError"></div>
+            <form onsubmit="submitArgument(event)">
+                <div class="form-group">
+                    <label for="argumentColumn">Column:</label>
+                    <select id="argumentColumn" required>
+                        <!-- Options populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="argumentText">Argument:</label>
+                    <textarea id="argumentText" placeholder="Enter your argument..." required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="closeModal('argumentModal')" style="background-color: #6c757d;">Cancel</button>
+                    <button type="submit" class="btn">Add Argument</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Critique Modal -->
+    <div id="critiqueModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCritiqueModal()">&times;</span>
+            <div class="modal-header">Add New Critique</div>
+            <div id="critiqueError"></div>
+            <div id="selectionInfo" class="selection-info" style="display: none;"></div>
+            <form onsubmit="submitCritique(event)">
+                <div class="form-group">
+                    <label for="critiqueText">Critique:</label>
+                    <textarea id="critiqueText" placeholder="Enter your critique..." required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="closeCritiqueModal()" style="background-color: #6c757d;">Cancel</button>
+                    <button type="submit" class="btn">Add Critique</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000'; // Change this to your Render URL
+        let data = [];
+        let selectedText = null;
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', loadData);
+
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_BASE}/data`);
+                data = await response.json();
+                renderColumns();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('Error connecting to server. Make sure your backend is running.');
+            }
+        }
+
+        function renderColumns() {
+            const columnsContainer = document.getElementById('columns');
+            columnsContainer.innerHTML = '';
+
+            data.forEach((column, columnIndex) => {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'column';
+                
+                const header = document.createElement('div');
+                header.className = 'column-header';
+                header.textContent = `Column ${columnIndex + 1}`;
+                columnDiv.appendChild(header);
+
+                column.forEach((panel, panelIndex) => {
+                    const panelDiv = document.createElement('div');
+                    panelDiv.className = 'panel';
+                    panelDiv.dataset.columnIndex = columnIndex;
+                    panelDiv.dataset.panelIndex = panelIndex;
+
+                    // Argument section
+                    const argumentSection = document.createElement('div');
+                    argumentSection.className = 'argument-section';
+                    
+                    const argumentText = document.createElement('div');
+                    argumentText.className = 'argument-text';
+                    argumentText.innerHTML = createHighlightedText(panel.argument, panel.critiques, columnIndex, panelIndex);
+                    argumentSection.appendChild(argumentText);
+
+                    // Critiques section
+                    const critiquesSection = document.createElement('div');
+                    critiquesSection.className = 'critiques-section';
+                    
+                    const critiquesContainer = document.createElement('div');
+                    critiquesContainer.className = 'critiques-container';
+                    
+                    if (panel.critiques.length === 0) {
+                        critiquesContainer.innerHTML = '<em>No critiques yet</em>';
+                    } else {
+                        panel.critiques.forEach((critique, critiqueIndex) => {
+                            const critiqueDiv = document.createElement('div');
+                            critiqueDiv.className = 'critique';
+                            critiqueDiv.textContent = critique[0];
+                            critiqueDiv.dataset.columnIndex = columnIndex;
+                            critiqueDiv.dataset.panelIndex = panelIndex;
+                            critiqueDiv.dataset.critiqueIndex = critiqueIndex;
+                            critiqueDiv.addEventListener('mouseenter', highlightCorrespondingText);
+                            critiqueDiv.addEventListener('mouseleave', removeHighlight);
+                            critiquesContainer.appendChild(critiqueDiv);
+                        });
+                    }
+                    
+                    critiquesSection.appendChild(critiquesContainer);
+
+                    panelDiv.appendChild(argumentSection);
+                    panelDiv.appendChild(critiquesSection);
+                    columnDiv.appendChild(panelDiv);
+                });
+
+                columnsContainer.appendChild(columnDiv);
+            });
+
+            // Populate column options in modals
+            populateColumnOptions();
+        }
+
+        function createHighlightedText(text, critiques, columnIndex, panelIndex) {
+            if (critiques.length === 0) return text;
+
+            // Sort critiques by start index
+            const sortedCritiques = [...critiques].sort((a, b) => a[1] - b[1]);
+            
+            let result = '';
+            let lastIndex = 0;
+
+            sortedCritiques.forEach((critique, critiqueIndex) => {
+                const [, start, end] = critique;
+                
+                // Add text before highlight
+                result += text.slice(lastIndex, start);
+                
+                // Add highlighted text
+                const highlightedSpan = `<span class="highlighted-text" data-column-index="${columnIndex}" data-panel-index="${panelIndex}" data-critique-index="${critiqueIndex}">${text.slice(start, end)}</span>`;
+                result += highlightedSpan;
+                
+                lastIndex = end;
+            });
+
+            // Add remaining text
+            result += text.slice(lastIndex);
+
+            return result;
+        }
+
+        function highlightCorrespondingText(event) {
+            const critiqueElement = event.target;
+            const columnIndex = critiqueElement.dataset.columnIndex;
+            const panelIndex = critiqueElement.dataset.panelIndex;
+            const critiqueIndex = critiqueElement.dataset.critiqueIndex;
+
+            // Add glow to critique
+            critiqueElement.classList.add('glow');
+
+            // Find and highlight corresponding text
+            const textSpan = document.querySelector(
+                `.highlighted-text[data-column-index="${columnIndex}"][data-panel-index="${panelIndex}"][data-critique-index="${critiqueIndex}"]`
+            );
+            if (textSpan) {
+                textSpan.classList.add('glow');
+            }
+        }
+
+        function removeHighlight(event) {
+            const critiqueElement = event.target;
+            const columnIndex = critiqueElement.dataset.columnIndex;
+            const panelIndex = critiqueElement.dataset.panelIndex;
+            const critiqueIndex = critiqueElement.dataset.critiqueIndex;
+
+            // Remove glow from critique
+            critiqueElement.classList.remove('glow');
+
+            // Remove highlight from corresponding text
+            const textSpan = document.querySelector(
+                `.highlighted-text[data-column-index="${columnIndex}"][data-panel-index="${panelIndex}"][data-critique-index="${critiqueIndex}"]`
+            );
+            if (textSpan) {
+                textSpan.classList.remove('glow');
+            }
+        }
+
+        // Add event listeners for text highlighting
+        document.addEventListener('mouseup', handleTextSelection);
+
+        function handleTextSelection() {
+            const selection = window.getSelection();
+            if (selection.rangeCount === 0 || selection.toString().trim() === '') {
+                selectedText = null;
+                return;
+            }
+
+            const range = selection.getRangeAt(0);
+            const argumentText = range.commonAncestorContainer.nodeType === Node.TEXT_NODE 
+                ? range.commonAncestorContainer.parentElement 
+                : range.commonAncestorContainer;
+
+            // Find the argument section
+            const argumentSection = argumentText.closest('.argument-section');
+            if (!argumentSection) {
+                selectedText = null;
+                return;
+            }
+
+            const panel = argumentSection.closest('.panel');
+            const columnIndex = parseInt(panel.dataset.columnIndex);
+            const panelIndex = parseInt(panel.dataset.panelIndex);
+
+            // Get the full text content and find selection indices
+            const fullText = data[columnIndex][panelIndex].argument;
+            const selectedTextContent = selection.toString();
+            
+            // Find start and end indices in the original text
+            const textBefore = range.startContainer.textContent.substring(0, range.startOffset);
+            const textAfter = range.endContainer.textContent.substring(range.endOffset);
+            
+            // This is a simplified approach - in production you'd want more robust text matching
+            const startIndex = fullText.indexOf(selectedTextContent);
+            if (startIndex === -1) {
+                selectedText = null;
+                return;
+            }
+
+            selectedText = {
+                columnIndex,
+                panelIndex,
+                text: selectedTextContent,
+                startIndex,
+                endIndex: startIndex + selectedTextContent.length
+            };
+        }
+
+        function populateColumnOptions() {
+            const select = document.getElementById('argumentColumn');
+            select.innerHTML = '';
+            
+            data.forEach((_, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Column ${index + 1}`;
+                select.appendChild(option);
+            });
+        }
+
+        function showArgumentModal() {
+            document.getElementById('argumentModal').style.display = 'block';
+            document.getElementById('argumentError').innerHTML = '';
+        }
+
+        function showCritiqueModal() {
+            if (!selectedText) {
+                alert('Please select text from an argument first to add a critique.');
+                return;
+            }
+
+            document.getElementById('critiqueModal').style.display = 'block';
+            document.getElementById('critiqueError').innerHTML = '';
+            
+            const selectionInfo = document.getElementById('selectionInfo');
+            selectionInfo.style.display = 'block';
+            selectionInfo.innerHTML = `Selected text: "${selectedText.text}" (Column ${selectedText.columnIndex + 1}, Panel ${selectedText.panelIndex + 1})`;
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function closeCritiqueModal() {
+            document.getElementById('critiqueModal').style.display = 'none';
+            document.getElementById('selectionInfo').style.display = 'none';
+            // Clear selection
+            window.getSelection().removeAllRanges();
+            selectedText = null;
+        }
+
+        async function submitArgument(event) {
+            event.preventDefault();
+            
+            const columnIndex = parseInt(document.getElementById('argumentColumn').value);
+            const argumentText = document.getElementById('argumentText').value.trim();
+            
+            try {
+                const response = await fetch(`${API_BASE}/argument`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        column_index: columnIndex,
+                        argument: argumentText
+                    })
+                });
+
+                if (response.ok) {
+                    closeModal('argumentModal');
+                    document.getElementById('argumentText').value = '';
+                    await loadData();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('argumentError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                console.error('Error submitting argument:', error);
+                document.getElementById('argumentError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+            }
+        }
+
+        async function submitCritique(event) {
+            event.preventDefault();
+            
+            if (!selectedText) {
+                document.getElementById('critiqueError').innerHTML = '<div class="error">No text selected</div>';
+                return;
+            }
+            
+            const critiqueText = document.getElementById('critiqueText').value.trim();
+            
+            try {
+                const response = await fetch(`${API_BASE}/critique`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        column_index: selectedText.columnIndex,
+                        panel_index: selectedText.panelIndex,
+                        critique_text: critiqueText,
+                        start_ind: selectedText.startIndex,
+                        end_ind: selectedText.endIndex
+                    })
+                });
+
+                if (response.ok) {
+                    closeCritiqueModal();
+                    document.getElementById('critiqueText').value = '';
+                    await loadData();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('critiqueError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                console.error('Error submitting critique:', error);
+                document.getElementById('critiqueError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+            }
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const argumentModal = document.getElementById('argumentModal');
+            const critiqueModal = document.getElementById('critiqueModal');
+            
+            if (event.target === argumentModal) {
+                closeModal('argumentModal');
+            }
+            if (event.target === critiqueModal) {
+                closeCritiqueModal();
+            }
+        }
+    </script>
+</body>
+</html>
