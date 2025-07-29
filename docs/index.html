@@ -17,9 +17,10 @@
     }
     .panel {
       display: flex;
+      flex-direction: column;
       border: 1px solid #ccc;
       padding: 10px;
-      gap: 20px;
+      gap: 10px;
     }
     .argument, .critiques {
       width: 300px;
@@ -31,17 +32,14 @@
     .highlight {
       background-color: yellow;
     }
-    .selected {
-      background-color: orange;
-    }
     .critique-item:hover {
       background-color: #ffeaa7;
       cursor: pointer;
     }
-    .input-section {
-      margin-top: 10px;
+    .form {
       display: flex;
       flex-direction: column;
+      gap: 5px;
     }
   </style>
 </head>
@@ -60,141 +58,143 @@
       }
     }
 
-    function clearHighlights() {
-      document.querySelectorAll('.selected').forEach(el => {
-        el.classList.remove('selected');
+    function createPanel(panelData, panelId, columnIndex) {
+      const panel = document.createElement('div');
+      panel.className = 'panel';
+
+      const argDiv = document.createElement('div');
+      argDiv.className = 'argument';
+      const rawArg = panelData.argument;
+      const spanMap = {};
+      let selectedStart = null;
+      let selectedEnd = null;
+
+      for (let i = 0; i < rawArg.length; i++) {
+        const span = document.createElement('span');
+        span.textContent = rawArg[i];
+        span.dataset.index = i;
+        argDiv.appendChild(span);
+        spanMap[i] = span;
+      }
+
+      const critDiv = document.createElement('div');
+      critDiv.className = 'critiques';
+
+      panelData.critiques.forEach(([text, start, end], idx) => {
+        const item = document.createElement('div');
+        item.className = 'critique-item';
+        item.textContent = text;
+
+        item.addEventListener('mouseenter', () => {
+          for (let i = start; i < end; i++) {
+            spanMap[i]?.classList.add('highlight');
+          }
+        });
+
+        item.addEventListener('mouseleave', () => {
+          for (let i = start; i < end; i++) {
+            spanMap[i]?.classList.remove('highlight');
+          }
+        });
+
+        critDiv.appendChild(item);
       });
+
+      Object.keys(spanMap).forEach(i => {
+        const span = spanMap[i];
+        span.addEventListener('mouseenter', () => {
+          panelData.critiques.forEach(([text, start, end], idx) => {
+            if (i >= start && i < end) {
+              critDiv.children[idx]?.classList.add('highlight');
+            }
+          });
+        });
+        span.addEventListener('mouseleave', () => {
+          panelData.critiques.forEach(([text, start, end], idx) => {
+            if (i >= start && i < end) {
+              critDiv.children[idx]?.classList.remove('highlight');
+            }
+          });
+        });
+      });
+
+      // Capture highlight selection
+      argDiv.addEventListener('mouseup', () => {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        if (!argDiv.contains(range.startContainer) || !argDiv.contains(range.endContainer)) return;
+
+        let startIndex = parseInt(range.startContainer.parentElement?.dataset.index);
+        let endIndex = parseInt(range.endContainer.parentElement?.dataset.index) + 1;
+
+        if (!isNaN(startIndex) && !isNaN(endIndex)) {
+          selectedStart = startIndex;
+          selectedEnd = endIndex;
+        }
+      });
+
+      // Critique form
+      const form = document.createElement('div');
+      form.className = 'form';
+
+      const textarea = document.createElement('textarea');
+      textarea.rows = 2;
+      textarea.placeholder = "Enter critique...";
+
+      const submit = document.createElement('button');
+      submit.textContent = "Submit Critique";
+      submit.onclick = async () => {
+        const critiqueText = textarea.value.trim();
+        if (!critiqueText || selectedStart === null || selectedEnd === null) {
+          alert("Please highlight some text in an argument and write a critique.");
+          return;
+        }
+
+        const payload = {
+          argument: rawArg,
+          critique: critiqueText,
+          start_ind: selectedStart,
+          end_ind: selectedEnd,
+          author: "demo_user"
+        };
+
+        try {
+          const res = await fetch(`${backendURL}/critique`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const result = await res.json();
+          alert(result.message || "Critique submitted.");
+          location.reload(); // Reload to show update
+        } catch (err) {
+          console.error(err);
+          alert("Failed to submit critique.");
+        }
+      };
+
+      form.appendChild(textarea);
+      form.appendChild(submit);
+
+      panel.appendChild(argDiv);
+      panel.appendChild(critDiv);
+      panel.appendChild(form);
+
+      return panel;
     }
 
-    function renderData(data) {
-      data.forEach(col => {
+    async function renderData() {
+      const data = await fetchData("/data");
+      if (!data) return;
+
+      data.forEach((col, colIdx) => {
         const columnEl = document.createElement('div');
         columnEl.className = 'column';
 
-        col.forEach(panelData => {
-          const panel = document.createElement('div');
-          panel.className = 'panel';
-
-          const argDiv = document.createElement('div');
-          argDiv.className = 'argument';
-          const rawArg = panelData.argument;
-          const spanMap = {};
-
-          let selectionStart = null;
-          let selectionEnd = null;
-
-          for (let i = 0; i < rawArg.length; i++) {
-            const span = document.createElement('span');
-            span.textContent = rawArg[i];
-            span.dataset.index = i;
-            argDiv.appendChild(span);
-            spanMap[i] = span;
-          }
-
-          const critDiv = document.createElement('div');
-          critDiv.className = 'critiques';
-
-          panelData.critiques.forEach((c, idx) => {
-            const [text, start, end] = c;
-            const item = document.createElement('div');
-            item.className = 'critique-item';
-            item.textContent = text;
-
-            item.addEventListener('mouseenter', () => {
-              for (let i = start; i < end; i++) {
-                spanMap[i]?.classList.add('highlight');
-              }
-            });
-            item.addEventListener('mouseleave', () => {
-              for (let i = start; i < end; i++) {
-                spanMap[i]?.classList.remove('highlight');
-              }
-            });
-
-            critDiv.appendChild(item);
-          });
-
-          Object.keys(spanMap).forEach(i => {
-            const span = spanMap[i];
-            span.addEventListener('mouseenter', () => {
-              panelData.critiques.forEach(([text, start, end], idx) => {
-                if (i >= start && i < end) {
-                  critDiv.children[idx]?.classList.add('highlight');
-                }
-              });
-            });
-            span.addEventListener('mouseleave', () => {
-              panelData.critiques.forEach(([text, start, end], idx) => {
-                if (i >= start && i < end) {
-                  critDiv.children[idx]?.classList.remove('highlight');
-                }
-              });
-            });
-          });
-
-          // Selection and submit logic
-          argDiv.addEventListener('mouseup', () => {
-            clearHighlights();
-            const sel = window.getSelection();
-            if (!sel.anchorNode || !sel.focusNode) return;
-
-            const startNode = sel.anchorNode.parentElement;
-            const endNode = sel.focusNode.parentElement;
-            if (!startNode.dataset.index || !endNode.dataset.index) return;
-
-            selectionStart = Math.min(+startNode.dataset.index, +endNode.dataset.index);
-            selectionEnd = Math.max(+startNode.dataset.index, +endNode.dataset.index) + 1;
-
-            for (let i = selectionStart; i < selectionEnd; i++) {
-              spanMap[i]?.classList.add('selected');
-            }
-          });
-
-          const input = document.createElement('textarea');
-          input.placeholder = "Enter your critique...";
-          const button = document.createElement('button');
-          button.textContent = "Submit Critique";
-
-          button.addEventListener('click', async () => {
-            if (selectionStart === null || selectionEnd === null) {
-              alert("Please highlight some text in an argument before submitting.");
-              return;
-            }
-            const text = input.value.trim();
-            if (!text) {
-              alert("Please enter a critique.");
-              return;
-            }
-
-            const payload = {
-              argument_text: rawArg,
-              critique_text: text,
-              start_index: selectionStart,
-              end_index: selectionEnd
-            };
-
-            const res = await fetch(`${backendURL}/submit`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
-            });
-
-            const result = await res.json();
-            if (result.status === "success") {
-              location.reload();
-            } else {
-              alert("Error submitting critique: " + result.message);
-            }
-          });
-
-          const inputSection = document.createElement('div');
-          inputSection.className = 'input-section';
-          inputSection.appendChild(input);
-          inputSection.appendChild(button);
-
-          panel.appendChild(argDiv);
-          panel.appendChild(critDiv);
-          panel.appendChild(inputSection);
+        col.forEach((panelData, panelIdx) => {
+          const panel = createPanel(panelData, panelIdx, colIdx);
           columnEl.appendChild(panel);
         });
 
@@ -202,9 +202,7 @@
       });
     }
 
-    fetchData("/data").then(data => {
-      if (data) renderData(data);
-    });
+    renderData();
   </script>
 </body>
 </html>
