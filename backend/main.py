@@ -48,16 +48,10 @@ def add_critique(payload: CritiquePayload):
     for column in data:
         for panel in column:
             arg = panel["argument"]
-            # Check if selected text matches argument substring exactly
+            # Check if highlighted text is a substring of argument at given indices
             if payload.text == arg[payload.start : payload.end]:
-                # Prevent exact duplicate critique on same range
-                if any(
-                    existing[0] == payload.critique
-                    and existing[1] == payload.start
-                    and existing[2] == payload.end
-                    for existing in panel["critiques"]
-                ):
-                    return {"status": "duplicate"}
+                # Just append, no duplicate check
                 panel["critiques"].append([payload.critique, payload.start, payload.end])
                 return {"status": "success"}
     return {"status": "error", "message": "Matching argument not found."}
+
