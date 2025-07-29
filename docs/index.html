@@ -273,7 +273,7 @@
 <body>
     <div class="container">
         <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Arguments and Critiques</h1>
-        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 12px;">Version 1.1</div>
+        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 12px;">Version 1.2</div>
         
         <div class="controls">
             <button class="btn" onclick="showArgumentModal()">Add Argument</button>
@@ -559,129 +559,143 @@
             }
         }
 
-        // Add event listeners for text highlighting
+        // Add event listeners for text highlighting - use mousedown instead of mouseup
         document.addEventListener('mouseup', handleTextSelection);
+        document.addEventListener('selectionchange', handleTextSelection);
 
         function handleTextSelection() {
+            console.log('handleTextSelection called');
+            
             const selection = window.getSelection();
+            console.log('Selection object:', selection);
+            console.log('Selection range count:', selection.rangeCount);
+            console.log('Selection string:', `"${selection.toString()}"`);
+            
             if (selection.rangeCount === 0 || selection.toString().trim() === '') {
+                console.log('No selection or empty selection');
                 selectedText = null;
                 return;
             }
 
             const selectedString = selection.toString().trim();
+            console.log('Selected string after trim:', `"${selectedString}"`);
+            
+            // Get the range
             const range = selection.getRangeAt(0);
+            console.log('Range:', range);
+            console.log('Range start container:', range.startContainer);
+            console.log('Range end container:', range.endContainer);
             
-            // Find the closest panel containing the selection
+            // Find panel by looking at both start and end containers
             let panel = null;
-            let node = range.commonAncestorContainer;
             
-            // Walk up to find panel
+            // Try to find panel from start container
+            let node = range.startContainer;
             while (node && node !== document.body) {
+                console.log('Checking node:', node.nodeName, node.className);
                 if (node.classList && node.classList.contains('panel')) {
                     panel = node;
+                    console.log('Found panel from start container');
                     break;
                 }
-                if (node.parentNode) {
+                node = node.parentNode;
+            }
+            
+            // If not found, try from end container
+            if (!panel) {
+                node = range.endContainer;
+                while (node && node !== document.body) {
+                    if (node.classList && node.classList.contains('panel')) {
+                        panel = node;
+                        console.log('Found panel from end container');
+                        break;
+                    }
                     node = node.parentNode;
-                } else {
-                    break;
                 }
             }
             
             if (!panel) {
+                console.log('Could not find panel');
                 selectedText = null;
                 return;
             }
             
-            // Check if selection is within argument section
-            const argumentSection = panel.querySelector('.argument-section');
-            if (!argumentSection) {
-                selectedText = null;
-                return;
-            }
+            console.log('Panel found:', panel);
+            console.log('Panel dataset:', panel.dataset);
             
-            // Check if the selection intersects with the argument section
-            if (!argumentSection.contains(range.commonAncestorContainer) && 
-                !range.intersectsNode(argumentSection)) {
-                selectedText = null;
-                return;
-            }
-
             const columnIndex = parseInt(panel.dataset.columnIndex);
             const panelIndex = parseInt(panel.dataset.panelIndex);
             
+            console.log('Column index:', columnIndex, 'Panel index:', panelIndex);
+            
             if (isNaN(columnIndex) || isNaN(panelIndex)) {
+                console.log('Invalid indices');
+                selectedText = null;
+                return;
+            }
+            
+            if (!data[columnIndex] || !data[columnIndex][panelIndex]) {
+                console.log('Data not found for indices');
                 selectedText = null;
                 return;
             }
 
             // Get the original argument text
             const originalText = data[columnIndex][panelIndex].argument;
+            console.log('Original text:', originalText);
             
-            // Find the selected text in the original argument
-            // Try multiple approaches to find the correct position
-            let startIndex = -1;
-            let endIndex = -1;
+            // Try to find the text in the original
+            let startIndex = originalText.indexOf(selectedString);
+            console.log('First indexOf result:', startIndex);
             
-            // Method 1: Direct string search
-            startIndex = originalText.indexOf(selectedString);
-            if (startIndex !== -1) {
-                endIndex = startIndex + selectedString.length;
-            } else {
-                // Method 2: Clean and retry (remove extra whitespace)
-                const cleanSelected = selectedString.replace(/\s+/g, ' ');
-                const cleanOriginal = originalText.replace(/\s+/g, ' ');
-                const cleanIndex = cleanOriginal.indexOf(cleanSelected);
+            if (startIndex === -1) {
+                // Try with normalized whitespace
+                const normalizedSelected = selectedString.replace(/\s+/g, ' ');
+                const normalizedOriginal = originalText.replace(/\s+/g, ' ');
+                console.log('Trying normalized - selected:', normalizedSelected);
+                console.log('Trying normalized - original:', normalizedOriginal);
                 
-                if (cleanIndex !== -1) {
-                    // Map back to original text positions
-                    let originalPos = 0;
-                    let cleanPos = 0;
+                const normalizedIndex = normalizedOriginal.indexOf(normalizedSelected);
+                console.log('Normalized indexOf result:', normalizedIndex);
+                
+                if (normalizedIndex !== -1) {
+                    // Find the actual position in the original text
+                    let actualPos = 0;
+                    let normalizedPos = 0;
                     
-                    // Find start position
-                    while (cleanPos < cleanIndex && originalPos < originalText.length) {
-                        if (originalText[originalPos].match(/\s/)) {
-                            originalPos++;
-                            if (cleanOriginal[cleanPos] === ' ') cleanPos++;
-                        } else {
-                            originalPos++;
-                            cleanPos++;
-                        }
-                    }
-                    startIndex = originalPos;
-                    
-                    // Find end position
-                    let remainingLength = cleanSelected.length;
-                    while (remainingLength > 0 && originalPos < originalText.length) {
-                        if (originalText[originalPos].match(/\s/)) {
-                            originalPos++;
-                            if (remainingLength > 0 && cleanSelected[cleanSelected.length - remainingLength] === ' ') {
-                                remainingLength--;
+                    while (normalizedPos < normalizedIndex && actualPos < originalText.length) {
+                        if (originalText[actualPos].match(/\s/)) {
+                            if (normalizedOriginal[normalizedPos] === ' ') {
+                                normalizedPos++;
                             }
+                            actualPos++;
                         } else {
-                            originalPos++;
-                            remainingLength--;
+                            actualPos++;
+                            normalizedPos++;
                         }
                     }
-                    endIndex = originalPos;
+                    startIndex = actualPos;
+                    console.log('Mapped back to actual position:', startIndex);
                 }
             }
             
-            // Validate the selection
-            if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+            if (startIndex === -1) {
+                console.log('Could not find selected text in original argument');
                 selectedText = null;
-                console.log('Text selection failed: could not find text in original argument');
                 return;
             }
             
-            // Double check the extracted text matches
+            const endIndex = startIndex + selectedString.length;
+            console.log('Start index:', startIndex, 'End index:', endIndex);
+            
+            // Validate
             const extractedText = originalText.substring(startIndex, endIndex);
-            if (extractedText.replace(/\s+/g, ' ').trim() !== selectedString.replace(/\s+/g, ' ').trim()) {
+            console.log('Extracted text:', `"${extractedText}"`);
+            console.log('Selected text:', `"${selectedString}"`);
+            
+            if (extractedText.trim() !== selectedString.trim()) {
+                console.log('Extracted text does not match selected text');
                 selectedText = null;
-                console.log('Text selection failed: extracted text does not match selected text');
-                console.log('Selected:', selectedString);
-                console.log('Extracted:', extractedText);
                 return;
             }
 
@@ -693,7 +707,7 @@
                 endIndex
             };
             
-            console.log('Text selected successfully:', selectedText);
+            console.log('SUCCESS: Text selected:', selectedText);
         }
 
         function populateColumnOptions() {
