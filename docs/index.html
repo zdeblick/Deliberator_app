@@ -1,4 +1,30 @@
-<!DOCTYPE html>
+async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const createAccount = document.getElementById('createAccount').checked;
+            
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password || null,
+                        create_account: createAccount
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    currentUser = username;
+                    
+                    // Hide login screen and show main app
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('userInfo').style.display = 'block<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -154,11 +180,116 @@
 
         .modal-content {
             background-color: white;
-            margin: 15% auto;
+            margin: 5% auto;
             padding: 20px;
             border-radius: 8px;
-            width: 80%;
-            max-width: 500px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .critique-modal .modal-content {
+            display: flex;
+            gap: 20px;
+        }
+
+        .critique-form-section {
+            flex: 1;
+        }
+
+        .argument-preview-section {
+            flex: 1;
+            border-left: 2px solid #ddd;
+            padding-left: 20px;
+        }
+
+        .argument-preview {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .login-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+
+        .login-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .user-info {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background-color: #007acc;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            z-index: 1000;
+        }
+
+        .rating-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        .rating-label {
+            font-weight: bold;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        .rating-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rating-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .rating-option input[type="radio"] {
+            margin-bottom: 5px;
+        }
+
+        .rating-option label {
+            font-size: 11px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .statement-preview {
+            background-color: #e3f2fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196f3;
         }
 
         .modal-header {
@@ -271,13 +402,45 @@
     </style>
 </head>
 <body>
+    <!-- Login Screen -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-content">
+            <h2 style="margin-bottom: 20px;">Welcome to Arguments and Critiques</h2>
+            <div id="loginError"></div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password (optional for new accounts):</label>
+                    <input type="password" id="password" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="createAccount"> Create new account
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn">Login / Sign Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Info Display -->
+    <div id="userInfo" class="user-info" style="display: none;">
+        Logged in as: <span id="currentUser"></span>
+    </div>
+
     <div class="container">
         <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Arguments and Critiques</h1>
-        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 12px;">Version 1.2</div>
+        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 12px;">Version 2.0</div>
         
         <div class="controls">
             <button class="btn" onclick="showArgumentModal()">Add Argument</button>
             <button class="btn" onclick="showCritiqueModal()">Add Critique</button>
+            <button class="btn" onclick="showRatingModal()">Rate Statement</button>
         </div>
 
         <div class="columns" id="columns">
@@ -322,20 +485,109 @@
     </div>
 
     <!-- Add Critique Modal -->
-    <div id="critiqueModal" class="modal">
+    <div id="critiqueModal" class="modal critique-modal">
         <div class="modal-content">
-            <span class="close" onclick="closeCritiqueModal()">&times;</span>
-            <div class="modal-header">Add New Critique</div>
-            <div id="critiqueError"></div>
-            <div id="selectionInfo" class="selection-info" style="display: none;"></div>
-            <form onsubmit="submitCritique(event)">
-                <div class="form-group">
-                    <label for="critiqueText">Critique:</label>
-                    <textarea id="critiqueText" placeholder="Enter your critique..." required></textarea>
+            <div class="critique-form-section">
+                <span class="close" onclick="closeCritiqueModal()">&times;</span>
+                <div class="modal-header">Add New Critique</div>
+                <div id="critiqueError"></div>
+                <div id="selectionInfo" class="selection-info" style="display: none;"></div>
+                <form onsubmit="submitCritique(event)">
+                    <div class="form-group">
+                        <label for="critiqueText">Critique:</label>
+                        <textarea id="critiqueText" placeholder="Enter your critique..." required></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn" onclick="closeCritiqueModal()" style="background-color: #6c757d;">Cancel</button>
+                        <button type="submit" class="btn">Add Critique</button>
+                    </div>
+                </form>
+            </div>
+            <div class="argument-preview-section">
+                <div class="modal-header">Argument Being Critiqued</div>
+                <div id="argumentPreview" class="argument-preview">
+                    Select text from an argument first.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rate Statement Modal -->
+    <div id="ratingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRatingModal()">&times;</span>
+            <div class="modal-header">Rate Statement</div>
+            <div id="ratingError"></div>
+            <div id="statementPreview" class="statement-preview" style="display: none;"></div>
+            <form onsubmit="submitRating(event)">
+                <div class="rating-grid">
+                    <div class="rating-label">This statement is written:</div>
+                    <div class="rating-options">
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="1" id="quality1" required>
+                            <label for="quality1">Very Poorly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="2" id="quality2">
+                            <label for="quality2">Poorly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="3" id="quality3">
+                            <label for="quality3">Not Well</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="4" id="quality4">
+                            <label for="quality4">Intelligibly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="5" id="quality5">
+                            <label for="quality5">Adequately</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="6" id="quality6">
+                            <label for="quality6">Well</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="7" id="quality7">
+                            <label for="quality7">Very Well</label>
+                        </div>
+                    </div>
+                    
+                    <div class="rating-label">With this statement, I:</div>
+                    <div class="rating-options">
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="1" id="agreement1" required>
+                            <label for="agreement1">Strongly Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="2" id="agreement2">
+                            <label for="agreement2">Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="3" id="agreement3">
+                            <label for="agreement3">Somewhat Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="4" id="agreement4">
+                            <label for="agreement4">am Neutral</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="5" id="agreement5">
+                            <label for="agreement5">Somewhat Agree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="6" id="agreement6">
+                            <label for="agreement6">Agree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="7" id="agreement7">
+                            <label for="agreement7">Strongly Agree</label>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn" onclick="closeCritiqueModal()" style="background-color: #6c757d;">Cancel</button>
-                    <button type="submit" class="btn">Add Critique</button>
+                    <button type="button" class="btn" onclick="closeRatingModal()" style="background-color: #6c757d;">Cancel</button>
+                    <button type="submit" class="btn">Submit Rating</button>
                 </div>
             </form>
         </div>
@@ -345,9 +597,14 @@
         const API_BASE = 'https://deliberator-app.onrender.com';
         let data = [];
         let selectedText = null;
+        let currentUser = null;
+        let selectedStatement = null; // For rating functionality
 
         // Load data on page load
-        document.addEventListener('DOMContentLoaded', loadData);
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show login screen first
+            document.getElementById('loginContainer').style.display = 'flex';
+        });
 
         async function loadData() {
             const loadingOverlay = document.getElementById('loadingOverlay');
@@ -559,155 +816,208 @@
             }
         }
 
-        // Add event listeners for text highlighting - use mousedown instead of mouseup
-        document.addEventListener('mouseup', handleTextSelection);
-        document.addEventListener('selectionchange', handleTextSelection);
+        // Add event listeners for text highlighting
+        document.addEventListener('mouseup', function(e) {
+            // Small delay to ensure selection is complete
+            setTimeout(handleTextSelection, 10);
+        });
 
         function handleTextSelection() {
-            console.log('handleTextSelection called');
-            
+            console.log('=== Text Selection Debug ===');
             const selection = window.getSelection();
-            console.log('Selection object:', selection);
-            console.log('Selection range count:', selection.rangeCount);
-            console.log('Selection string:', `"${selection.toString()}"`);
             
-            if (selection.rangeCount === 0 || selection.toString().trim() === '') {
-                console.log('No selection or empty selection');
-                selectedText = null;
+            if (selection.rangeCount === 0) {
+                console.log('No ranges in selection');
+                // Don't clear selectedText here - keep the last valid selection
                 return;
             }
-
+            
             const selectedString = selection.toString().trim();
-            console.log('Selected string after trim:', `"${selectedString}"`);
+            console.log('Selected string:', `"${selectedString}"`);
             
-            // Get the range
-            const range = selection.getRangeAt(0);
-            console.log('Range:', range);
-            console.log('Range start container:', range.startContainer);
-            console.log('Range end container:', range.endContainer);
-            
-            // Find panel by looking at both start and end containers
-            let panel = null;
-            
-            // Try to find panel from start container
-            let node = range.startContainer;
-            while (node && node !== document.body) {
-                console.log('Checking node:', node.nodeName, node.className);
-                if (node.classList && node.classList.contains('panel')) {
-                    panel = node;
-                    console.log('Found panel from start container');
-                    break;
-                }
-                node = node.parentNode;
-            }
-            
-            // If not found, try from end container
-            if (!panel) {
-                node = range.endContainer;
-                while (node && node !== document.body) {
-                    if (node.classList && node.classList.contains('panel')) {
-                        panel = node;
-                        console.log('Found panel from end container');
-                        break;
-                    }
-                    node = node.parentNode;
-                }
-            }
-            
-            if (!panel) {
-                console.log('Could not find panel');
-                selectedText = null;
-                return;
-            }
-            
-            console.log('Panel found:', panel);
-            console.log('Panel dataset:', panel.dataset);
-            
-            const columnIndex = parseInt(panel.dataset.columnIndex);
-            const panelIndex = parseInt(panel.dataset.panelIndex);
-            
-            console.log('Column index:', columnIndex, 'Panel index:', panelIndex);
-            
-            if (isNaN(columnIndex) || isNaN(panelIndex)) {
-                console.log('Invalid indices');
-                selectedText = null;
-                return;
-            }
-            
-            if (!data[columnIndex] || !data[columnIndex][panelIndex]) {
-                console.log('Data not found for indices');
-                selectedText = null;
+            if (selectedString === '') {
+                console.log('Empty selection');
+                // Don't clear selectedText here - keep the last valid selection
                 return;
             }
 
-            // Get the original argument text
-            const originalText = data[columnIndex][panelIndex].argument;
+            // Find which panel this selection belongs to
+            const range = selection.getRangeAt(0);
+            console.log('Selection range:', range);
+            
+            // Get all panels and check which one contains the selection
+            const panels = document.querySelectorAll('.panel');
+            let targetPanel = null;
+            let targetColumnIndex = -1;
+            let targetPanelIndex = -1;
+            
+            for (let panel of panels) {
+                const argumentSection = panel.querySelector('.argument-section');
+                if (argumentSection) {
+                    // Check if the selection is within this argument section
+                    try {
+                        if (argumentSection.contains(range.startContainer) || 
+                            argumentSection.contains(range.endContainer) ||
+                            range.intersectsNode(argumentSection)) {
+                            targetPanel = panel;
+                            targetColumnIndex = parseInt(panel.dataset.columnIndex);
+                            targetPanelIndex = parseInt(panel.dataset.panelIndex);
+                            console.log('Found target panel:', targetColumnIndex, targetPanelIndex);
+                            break;
+                        }
+                    } catch (e) {
+                        console.log('Error checking panel:', e);
+                        continue;
+                    }
+                }
+            }
+            
+            if (!targetPanel || targetColumnIndex === -1 || targetPanelIndex === -1) {
+                console.log('Could not find target panel');
+                // Don't clear selectedText here - might be selecting outside argument area
+                return;
+            }
+            
+            // Get the original text
+            if (!data[targetColumnIndex] || !data[targetColumnIndex][targetPanelIndex]) {
+                console.log('Invalid data indices');
+                return;
+            }
+            
+            const originalText = data[targetColumnIndex][targetPanelIndex].argument;
             console.log('Original text:', originalText);
             
-            // Try to find the text in the original
+            // Find the position in original text
+            // Method 1: Exact match
             let startIndex = originalText.indexOf(selectedString);
-            console.log('First indexOf result:', startIndex);
+            if (startIndex !== -1) {
+                console.log('Found exact match at position:', startIndex);
+                selectedText = {
+                    columnIndex: targetColumnIndex,
+                    panelIndex: targetPanelIndex,
+                    text: selectedString,
+                    startIndex: startIndex,
+                    endIndex: startIndex + selectedString.length
+                };
+                console.log('Selection successful:', selectedText);
+                
+                // Visual feedback - highlight the selected text briefly
+                showSelectionFeedback();
+                return;
+            }
             
-            if (startIndex === -1) {
-                // Try with normalized whitespace
-                const normalizedSelected = selectedString.replace(/\s+/g, ' ');
-                const normalizedOriginal = originalText.replace(/\s+/g, ' ');
-                console.log('Trying normalized - selected:', normalizedSelected);
-                console.log('Trying normalized - original:', normalizedOriginal);
+            // Method 2: Handle multiple occurrences by finding the best match
+            let allMatches = [];
+            let searchStart = 0;
+            while (true) {
+                let matchIndex = originalText.indexOf(selectedString, searchStart);
+                if (matchIndex === -1) break;
+                allMatches.push(matchIndex);
+                searchStart = matchIndex + 1;
+            }
+            
+            console.log('All matches found:', allMatches);
+            
+            if (allMatches.length > 0) {
+                // For now, just use the first match
+                // TODO: Could improve this by analyzing selection position
+                startIndex = allMatches[0];
+                selectedText = {
+                    columnIndex: targetColumnIndex,
+                    panelIndex: targetPanelIndex,
+                    text: selectedString,
+                    startIndex: startIndex,
+                    endIndex: startIndex + selectedString.length
+                };
+                console.log('Using first match:', selectedText);
+                showSelectionFeedback();
+                return;
+            }
+            
+            // Method 3: Normalize whitespace and try again
+            const normalizedSelected = selectedString.replace(/\s+/g, ' ');
+            const normalizedOriginal = originalText.replace(/\s+/g, ' ');
+            
+            let normalizedIndex = normalizedOriginal.indexOf(normalizedSelected);
+            if (normalizedIndex !== -1) {
+                console.log('Found match after normalizing whitespace');
                 
-                const normalizedIndex = normalizedOriginal.indexOf(normalizedSelected);
-                console.log('Normalized indexOf result:', normalizedIndex);
+                // Map back to original positions
+                let originalIndex = 0;
+                let normalizedCount = 0;
                 
-                if (normalizedIndex !== -1) {
-                    // Find the actual position in the original text
-                    let actualPos = 0;
-                    let normalizedPos = 0;
-                    
-                    while (normalizedPos < normalizedIndex && actualPos < originalText.length) {
-                        if (originalText[actualPos].match(/\s/)) {
-                            if (normalizedOriginal[normalizedPos] === ' ') {
-                                normalizedPos++;
-                            }
-                            actualPos++;
-                        } else {
-                            actualPos++;
-                            normalizedPos++;
+                while (normalizedCount < normalizedIndex && originalIndex < originalText.length) {
+                    if (originalText[originalIndex].match(/\s/)) {
+                        // Skip consecutive whitespace in original
+                        while (originalIndex < originalText.length && originalText[originalIndex].match(/\s/)) {
+                            originalIndex++;
                         }
+                        if (normalizedCount < normalizedOriginal.length && normalizedOriginal[normalizedCount] === ' ') {
+                            normalizedCount++;
+                        }
+                    } else {
+                        originalIndex++;
+                        normalizedCount++;
                     }
-                    startIndex = actualPos;
-                    console.log('Mapped back to actual position:', startIndex);
                 }
-            }
-            
-            if (startIndex === -1) {
-                console.log('Could not find selected text in original argument');
-                selectedText = null;
+                
+                startIndex = originalIndex;
+                
+                // Find end position
+                let remainingChars = normalizedSelected.length;
+                while (remainingChars > 0 && originalIndex < originalText.length) {
+                    if (originalText[originalIndex].match(/\s/)) {
+                        originalIndex++;
+                        if (remainingChars > 0 && normalizedSelected[normalizedSelected.length - remainingChars] === ' ') {
+                            remainingChars--;
+                        }
+                    } else {
+                        originalIndex++;
+                        remainingChars--;
+                    }
+                }
+                
+                selectedText = {
+                    columnIndex: targetColumnIndex,
+                    panelIndex: targetPanelIndex,
+                    text: selectedString,
+                    startIndex: startIndex,
+                    endIndex: originalIndex
+                };
+                console.log('Whitespace normalized selection:', selectedText);
+                showSelectionFeedback();
                 return;
             }
             
-            const endIndex = startIndex + selectedString.length;
-            console.log('Start index:', startIndex, 'End index:', endIndex);
-            
-            // Validate
-            const extractedText = originalText.substring(startIndex, endIndex);
-            console.log('Extracted text:', `"${extractedText}"`);
-            console.log('Selected text:', `"${selectedString}"`);
-            
-            if (extractedText.trim() !== selectedString.trim()) {
-                console.log('Extracted text does not match selected text');
-                selectedText = null;
-                return;
-            }
+            console.log('Failed to find text in original argument');
+            console.log('Selected:', `"${selectedString}"`);
+            console.log('Original:', `"${originalText}"`);
+        }
 
-            selectedText = {
-                columnIndex,
-                panelIndex,
-                text: selectedString,
-                startIndex,
-                endIndex
-            };
+        function showSelectionFeedback() {
+            // Create a temporary visual indicator
+            const feedback = document.createElement('div');
+            feedback.innerHTML = `✓ Selected: "${selectedText.text}"`;
+            feedback.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 1000;
+                font-size: 14px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            `;
             
-            console.log('SUCCESS: Text selected:', selectedText);
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+                if (feedback.parentNode) {
+                    feedback.parentNode.removeChild(feedback);
+                }
+            }, 2000);
         }
 
         function populateColumnOptions() {
