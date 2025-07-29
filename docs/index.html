@@ -1,281 +1,175 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Deliberator</title>
+  <meta charset="UTF-8">
+  <title>Argument & Critiques</title>
   <style>
     body {
-      font-family: sans-serif;
-      margin: 1rem;
-    }
-    #container {
-      display: flex;
-      gap: 1rem;
-    }
-    .column {
-      flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 20px;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+    .columns {
+      display: flex;
+      gap: 20px;
+    }
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
     .panel {
       display: flex;
-      gap: 1rem;
       border: 1px solid #ccc;
-      padding: 0.5rem;
-      border-radius: 6px;
-      align-items: flex-start;
+      padding: 10px;
+      gap: 20px;
     }
-    .arg-text {
-      flex: 2;
-      white-space: pre-wrap;
-      position: relative;
-      user-select: text;
-    }
-    .critiques {
-      flex: 1;
-      max-height: 200px;
+    .argument, .critiques {
+      width: 300px;
       overflow-y: auto;
-      border-left: 1px solid #ddd;
-      padding-left: 0.5rem;
+      max-height: 200px;
+      padding: 5px;
+      border: 1px solid #eee;
     }
-    .critique {
-      background: #f9f9f9;
-      padding: 0.25rem 0.5rem;
-      margin-bottom: 0.4rem;
-      border-radius: 4px;
+    .highlight {
+      background-color: yellow;
+    }
+    .critique-item:hover {
+      background-color: #ffeaa7;
       cursor: pointer;
     }
-    .highlight-temp {
-      background-color: rgba(255, 230, 150, 0.7);
-    }
-    .highlight-perm {
-      background-color: rgba(255, 200, 0, 0.4);
-      transition: background-color 0.2s ease;
-      cursor: pointer;
-    }
-    .highlight-perm.hovered,
-    .critique.hovered {
-      background-color: rgba(255, 150, 0, 0.9);
-    }
-    #submit-box {
-      margin-bottom: 1rem;
-      border: 1px solid #ccc;
-      padding: 0.5rem;
-      border-radius: 6px;
-      background: #f0f0f0;
-      max-width: 800px;
-    }
-    #critiqueInput {
-      width: 100%;
-      height: 4rem;
-      margin-top: 0.5rem;
-      padding: 0.5rem;
-      font-size: 1rem;
-      box-sizing: border-box;
-      border-radius: 4px;
-      border: 1px solid #aaa;
-      resize: vertical;
-    }
-    #submitCritique {
-      margin-top: 0.5rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-      border-radius: 4px;
-      border: none;
-      background-color: #007bff;
-      color: white;
-    }
-    #submitCritique:hover {
-      background-color: #0056b3;
+    #input-area {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
   </style>
 </head>
 <body>
-
-  <h1>Deliberator</h1>
-
-  <div id="submit-box">
-    <strong>Submit a new critique</strong>
-    <textarea id="critiqueInput" placeholder="Type your critique here..."></textarea>
+  <div class="columns" id="content"></div>
+  <div id="input-area">
+    <textarea id="critiqueInput" placeholder="Enter your critique here..."></textarea>
     <button id="submitCritique">Submit Critique</button>
   </div>
 
-  <div id="container"></div>
-
   <script>
-    const API_BASE = "https://deliberator-app.onrender.com";
+    const backendURL = "https://deliberator-app.onrender.com";
+
     let currentHighlight = null;
+    let argumentMap = new Map();
 
-    async function fetchData(url, method = "GET", body = null) {
-      const res = await fetch(API_BASE + url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : null,
-      });
-      if (!res.ok) throw new Error(`Fetch error: ${res.status}`);
-      return res.json();
-    }
-
-    function clearHighlights(className = "highlight-temp") {
-      document.querySelectorAll(`.${className}`).forEach((hl) => {
-        const parent = hl.parentNode;
-        while (hl.firstChild) parent.insertBefore(hl.firstChild, hl);
-        parent.removeChild(hl);
-      });
-    }
-
-    function highlightRange(argElem, start, end, className = "highlight-temp", dataset = {}) {
-      const range = document.createRange();
-
-      // If argElem contains multiple nodes (like spans), find the correct text nodes and wrap just the text from start to end
-      // For simplicity: assume argElem.textContent is a single string, and its firstChild is a single text node
-      // If your argElem becomes more complex, you'll need a more sophisticated function.
-
-      const textNode = argElem.firstChild;
-      if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return null;
-
-      const span = document.createElement("span");
-      span.className = className;
-      for (const [key, val] of Object.entries(dataset)) {
-        span.dataset[key] = val;
-      }
-
-      range.setStart(textNode, start);
-      range.setEnd(textNode, end);
-      range.surroundContents(span);
-
-      return span;
-    }
-
-    // NEW helper to get selection offsets RELATIVE to argument container's full text content
-    function getRelativeSelectionOffsets(container) {
-      const selection = window.getSelection();
-      if (!selection.rangeCount) return null;
-
-      const range = selection.getRangeAt(0);
-
-      // Make sure selection is fully inside container
-      if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+    async function fetchData(endpoint) {
+      try {
+        const res = await fetch(`${backendURL}${endpoint}`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        return await res.json();
+      } catch (err) {
+        console.error("Fetch error:", err);
         return null;
       }
-
-      function getCharOffset(node, offset) {
-        let charCount = 0;
-        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-        while (walker.nextNode()) {
-          const currentNode = walker.currentNode;
-          if (currentNode === node) {
-            return charCount + offset;
-          }
-          charCount += currentNode.textContent.length;
-        }
-        return -1;
-      }
-
-      const start = getCharOffset(range.startContainer, range.startOffset);
-      const end = getCharOffset(range.endContainer, range.endOffset);
-
-      if (start === -1 || end === -1 || start >= end) return null;
-
-      const text = container.textContent.slice(start, end);
-      return { start, end, text };
     }
 
-    // Clear old temp highlight, then create new temp highlight for user selection
-    function handleUserHighlight() {
-      clearHighlights("highlight-temp");
-
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) return null;
-
-      const container = selection.anchorNode.parentElement.closest(".arg-text");
-      if (!container) {
-        alert("Please select text within a single argument.");
-        return null;
-      }
-
-      const offsets = getRelativeSelectionOffsets(container);
-      if (!offsets) {
-        alert("Selection must be fully within a single argument.");
-        return null;
-      }
-
-      const { start, end, text } = offsets;
-      const span = highlightRange(container, start, end, "highlight-temp");
-      if (!span) return null;
-
-      currentHighlight = { container, start, end, selectedText: text, span };
-      return currentHighlight;
-    }
-
-    function addHoverSync(hlElem, critElem) {
-      function enter() {
-        hlElem.classList.add("hovered");
-        critElem.classList.add("hovered");
-      }
-      function leave() {
-        hlElem.classList.remove("hovered");
-        critElem.classList.remove("hovered");
-      }
-      hlElem.addEventListener("mouseenter", enter);
-      hlElem.addEventListener("mouseleave", leave);
-      critElem.addEventListener("mouseenter", enter);
-      critElem.addEventListener("mouseleave", leave);
-    }
-
-    async function loadData() {
-      const data = await fetchData("/arguments");
-      const container = document.getElementById("container");
+    function renderData(data) {
+      const container = document.getElementById("content");
       container.innerHTML = "";
 
-      data.forEach((column) => {
-        const colDiv = document.createElement("div");
-        colDiv.className = "column";
+      data.forEach(col => {
+        const columnEl = document.createElement('div');
+        columnEl.className = 'column';
 
-        column.forEach((panel) => {
-          const panelDiv = document.createElement("div");
-          panelDiv.className = "panel";
+        col.forEach(panelData => {
+          const panel = document.createElement('div');
+          panel.className = 'panel';
 
-          const argDiv = document.createElement("div");
-          argDiv.className = "arg-text";
-          argDiv.textContent = panel.argument;
+          const argDiv = document.createElement('div');
+          argDiv.className = 'argument';
+          const rawArg = panelData.argument;
 
-          const critDiv = document.createElement("div");
-          critDiv.className = "critiques";
+          const spanMap = {}; // key = index, value = span element
 
-          panel.critiques.forEach(([critText, start, end], idx) => {
-            const critElem = document.createElement("div");
-            critElem.className = "critique";
-            critElem.textContent = critText;
+          for (let i = 0; i < rawArg.length; i++) {
+            const span = document.createElement('span');
+            span.textContent = rawArg[i];
+            span.dataset.index = i;
+            argDiv.appendChild(span);
+            spanMap[i] = span;
+          }
 
-            const hl = highlightRange(argDiv, start, end, "highlight-perm", {
-              start,
-              end,
-              critidx: idx,
+          const critDiv = document.createElement('div');
+          critDiv.className = 'critiques';
+
+          panelData.critiques.forEach((c, idx) => {
+            const [text, start, end] = c;
+            const item = document.createElement('div');
+            item.className = 'critique-item';
+            item.textContent = text;
+
+            item.addEventListener('mouseenter', () => {
+              for (let i = start; i < end; i++) {
+                spanMap[i]?.classList.add('highlight');
+              }
             });
 
-            if (hl) {
-              addHoverSync(hl, critElem);
-            }
+            item.addEventListener('mouseleave', () => {
+              for (let i = start; i < end; i++) {
+                spanMap[i]?.classList.remove('highlight');
+              }
+            });
 
-            critDiv.appendChild(critElem);
+            critDiv.appendChild(item);
           });
 
-          panelDiv.appendChild(argDiv);
-          panelDiv.appendChild(critDiv);
-          colDiv.appendChild(panelDiv);
+          // Argument to critique hover (reverse mapping)
+          Object.keys(spanMap).forEach(i => {
+            const span = spanMap[i];
+            span.addEventListener('mouseenter', () => {
+              panelData.critiques.forEach(([text, start, end], idx) => {
+                if (i >= start && i < end) {
+                  critDiv.children[idx]?.classList.add('highlight');
+                }
+              });
+            });
+            span.addEventListener('mouseleave', () => {
+              panelData.critiques.forEach(([text, start, end], idx) => {
+                if (i >= start && i < end) {
+                  critDiv.children[idx]?.classList.remove('highlight');
+                }
+              });
+            });
+          });
+
+          // Capture argument data
+          argumentMap.set(argDiv, rawArg);
+
+          // Highlight logic
+          argDiv.addEventListener('mouseup', () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount === 0) return;
+            const range = selection.getRangeAt(0);
+            if (!argDiv.contains(range.startContainer) || !argDiv.contains(range.endContainer)) return;
+
+            let startIdx = parseInt(range.startContainer.parentElement?.dataset.index || 0);
+            let endIdx = parseInt(range.endContainer.parentElement?.dataset.index || 0) + 1;
+            if (startIdx > endIdx) [startIdx, endIdx] = [endIdx, startIdx];
+
+            currentHighlight = {
+              argumentText: rawArg,
+              start: startIdx,
+              end: endIdx
+            };
+          });
+
+          panel.appendChild(argDiv);
+          panel.appendChild(critDiv);
+          columnEl.appendChild(panel);
         });
 
-        container.appendChild(colDiv);
+        container.appendChild(columnEl);
       });
     }
-
-    document.addEventListener("mouseup", () => {
-      handleUserHighlight();
-    });
 
     document.getElementById("submitCritique").addEventListener("click", async () => {
       const critiqueText = document.getElementById("critiqueInput").value.trim();
@@ -289,31 +183,30 @@
       }
 
       const payload = {
-        text: currentHighlight.selectedText,
-        start: currentHighlight.start,
-        end: currentHighlight.end,
+        argument: currentHighlight.argumentText,
         critique: critiqueText,
+        start: currentHighlight.start,
+        end: currentHighlight.end
       };
 
       try {
-        const res = await fetchData("/highlight", "POST", payload);
-        if (res.status === "success") {
-          clearHighlights("highlight-temp");
-          currentHighlight = null;
-          document.getElementById("critiqueInput").value = "";
-          await loadData();
-        } else if (res.status === "duplicate") {
-          alert("This critique already exists.");
-        } else {
-          alert("Error submitting critique: " + (res.message || "Unknown error"));
-        }
+        const res = await fetch(`${backendURL}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error("Submission failed");
+        location.reload();
       } catch (err) {
-        alert("Network or server error submitting critique.");
-        console.error(err);
+        console.error("Error submitting critique:", err);
+        alert("Failed to submit critique.");
       }
     });
 
-    loadData();
+    // Load data
+    fetchData("/data").then(data => {
+      if (data) renderData(data);
+    });
   </script>
 </body>
 </html>
