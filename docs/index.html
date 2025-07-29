@@ -216,6 +216,50 @@
             border: 1px solid #f5c6cb;
         }
 
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007acc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .loading-message {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .loading-submessage {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+
         .selection-info {
             background-color: #d1ecf1;
             color: #0c5460;
@@ -237,6 +281,17 @@
 
         <div class="columns" id="columns">
             <!-- Columns will be dynamically populated -->
+        </div>
+
+        <div id="statusMessage" class="status-message" style="display: none;"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-message" id="loadingMessage">Connecting to server...</div>
+            <div class="loading-submessage" id="loadingSubmessage">This may take a moment</div>
         </div>
     </div>
 
@@ -294,13 +349,83 @@
         document.addEventListener('DOMContentLoaded', loadData);
 
         async function loadData() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const loadingSubmessage = document.getElementById('loadingSubmessage');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Show loading overlay
+            loadingOverlay.style.display = 'flex';
+            statusMessage.style.display = 'none';
+            
+            const startTime = Date.now();
+            let coldStartWarningShown = false;
+            
+            // Show cold start warning after 3 seconds
+            const coldStartTimer = setTimeout(() => {
+                if (!coldStartWarningShown) {
+                    loadingMessage.textContent = 'Backend is starting up...';
+                    loadingSubmessage.textContent = 'Render services can take up to 50 seconds to wake up from sleep. Please be patient!';
+                    coldStartWarningShown = true;
+                }
+            }, 3000);
+            
             try {
-                const response = await fetch(`${API_BASE}/data`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+                
+                const response = await fetch(`${API_BASE}/data`, {
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                clearTimeout(coldStartTimer);
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
                 data = await response.json();
+                loadingOverlay.style.display = 'none';
+                
+                // Show success message if it was a slow load
+                const loadTime = Date.now() - startTime;
+                if (loadTime > 5000) {
+                    statusMessage.className = 'status-message status-warning';
+                    statusMessage.textContent = `Connected successfully! (took ${Math.round(loadTime/1000)} seconds)`;
+                    statusMessage.style.display = 'block';
+                    
+                    // Hide success message after 5 seconds
+                    setTimeout(() => {
+                        statusMessage.style.display = 'none';
+                    }, 5000);
+                }
+                
                 renderColumns();
+                
             } catch (error) {
+                clearTimeout(coldStartTimer);
+                loadingOverlay.style.display = 'none';
+                
                 console.error('Error loading data:', error);
-                alert('Error connecting to server. Make sure your backend is running.');
+                
+                let errorMessage = 'Unable to connect to the server. ';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage += 'The request timed out after 60 seconds. The server may be experiencing issues.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Please check that the backend is running and accessible.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                statusMessage.className = 'status-message status-error';
+                statusMessage.innerHTML = `
+                    ${errorMessage}
+                    <br><br>
+                    <button class="btn" onclick="loadData()" style="margin-top: 10px;">Try Again</button>
+                `;
+                statusMessage.style.display = 'block';
             }
         }
 
@@ -444,34 +569,148 @@
             }
 
             const range = selection.getRangeAt(0);
-            const argumentText = range.commonAncestorContainer.nodeType === Node.TEXT_NODE 
-                ? range.commonAncestorContainer.parentElement 
-                : range.commonAncestorContainer;
+            
+            // Find the argument section that contains the selection
+            let argumentSection = null;
+            let currentNode = range.commonAncestorContainer;
+            
+            // Walk up the DOM tree to find the argument section
+            while (currentNode && currentNode !== document) {
+                if (currentNode.classList && currentNode.classList.contains('argument-section')) {
+                    argumentSection = currentNode;
+                    break;
+                }
+                if (currentNode.closest && currentNode.closest('.argument-section')) {
+                    argumentSection = currentNode.closest('.argument-section');
+                    break;
+                }
+                currentNode = currentNode.parentNode;
+            }
 
-            // Find the argument section
-            const argumentSection = argumentText.closest('.argument-section');
             if (!argumentSection) {
                 selectedText = null;
                 return;
             }
 
             const panel = argumentSection.closest('.panel');
+            if (!panel) {
+                selectedText = null;
+                return;
+            }
+
             const columnIndex = parseInt(panel.dataset.columnIndex);
             const panelIndex = parseInt(panel.dataset.panelIndex);
 
-            // Get the full text content and find selection indices
-            const fullText = data[columnIndex][panelIndex].argument;
-            const selectedTextContent = selection.toString();
-            
-            // Find start and end indices in the original text
-            const textBefore = range.startContainer.textContent.substring(0, range.startOffset);
-            const textAfter = range.endContainer.textContent.substring(range.endOffset);
-            
-            // This is a simplified approach - in production you'd want more robust text matching
-            const startIndex = fullText.indexOf(selectedTextContent);
-            if (startIndex === -1) {
+            // Get the argument text element
+            const argumentTextElement = argumentSection.querySelector('.argument-text');
+            if (!argumentTextElement) {
                 selectedText = null;
                 return;
+            }
+
+            // Calculate character positions relative to the plain text
+            const selectedTextContent = selection.toString().trim();
+            const fullText = data[columnIndex][panelIndex].argument;
+            
+            // Get all text nodes in the argument text element
+            const textNodes = [];
+            const walker = document.createTreeWalker(
+                argumentTextElement,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+            
+            let node;
+            while (node = walker.nextNode()) {
+                textNodes.push(node);
+            }
+
+            // Find the start and end positions in the original text
+            let currentPosition = 0;
+            let startIndex = -1;
+            let endIndex = -1;
+            let foundStart = false;
+            let foundEnd = false;
+
+            for (let textNode of textNodes) {
+                const nodeText = textNode.textContent;
+                const nodeLength = nodeText.length;
+                
+                // Check if this node contains the start of the selection
+                if (!foundStart && range.startContainer === textNode) {
+                    startIndex = currentPosition + range.startOffset;
+                    foundStart = true;
+                }
+                
+                // Check if this node contains the end of the selection
+                if (!foundEnd && range.endContainer === textNode) {
+                    endIndex = currentPosition + range.endOffset;
+                    foundEnd = true;
+                }
+                
+                // If we're looking for start/end in different nodes
+                if (!foundStart && range.startContainer.parentNode && 
+                    textNode.parentNode.contains(range.startContainer)) {
+                    // Complex case - selection spans multiple elements
+                    const nodeRange = document.createRange();
+                    nodeRange.selectNodeContents(textNode);
+                    if (range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0 &&
+                        range.compareBoundaryPoints(Range.START_TO_END, nodeRange) >= 0) {
+                        startIndex = currentPosition;
+                        foundStart = true;
+                    }
+                }
+                
+                currentPosition += nodeLength;
+                
+                if (foundStart && foundEnd) break;
+            }
+
+            // Fallback: try to find the text by content matching
+            if (startIndex === -1 || endIndex === -1) {
+                const plainTextContent = argumentTextElement.textContent;
+                const selectionStart = plainTextContent.indexOf(selectedTextContent);
+                if (selectionStart !== -1) {
+                    startIndex = selectionStart;
+                    endIndex = selectionStart + selectedTextContent.length;
+                }
+            }
+
+            // Validate the selection
+            if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+                selectedText = null;
+                return;
+            }
+
+            // Double-check that our indices match the selected text
+            const extractedText = fullText.substring(startIndex, endIndex);
+            if (extractedText !== selectedTextContent) {
+                // Try one more fallback approach
+                let bestMatch = -1;
+                let bestScore = 0;
+                
+                for (let i = 0; i <= fullText.length - selectedTextContent.length; i++) {
+                    const candidate = fullText.substring(i, i + selectedTextContent.length);
+                    if (candidate === selectedTextContent) {
+                        bestMatch = i;
+                        break;
+                    }
+                    // Fuzzy matching as last resort
+                    const score = similarity(candidate, selectedTextContent);
+                    if (score > bestScore && score > 0.9) {
+                        bestScore = score;
+                        bestMatch = i;
+                    }
+                }
+                
+                if (bestMatch === -1) {
+                    selectedText = null;
+                    return;
+                }
+                
+                startIndex = bestMatch;
+                endIndex = bestMatch + selectedTextContent.length;
             }
 
             selectedText = {
@@ -479,8 +718,40 @@
                 panelIndex,
                 text: selectedTextContent,
                 startIndex,
-                endIndex: startIndex + selectedTextContent.length
+                endIndex
             };
+        }
+
+        // Simple similarity function for fuzzy matching
+        function similarity(s1, s2) {
+            const longer = s1.length > s2.length ? s1 : s2;
+            const shorter = s1.length > s2.length ? s2 : s1;
+            const editDistance = levenshteinDistance(longer, shorter);
+            return (longer.length - editDistance) / longer.length;
+        }
+
+        function levenshteinDistance(str1, str2) {
+            const matrix = [];
+            for (let i = 0; i <= str2.length; i++) {
+                matrix[i] = [i];
+            }
+            for (let j = 0; j <= str1.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (let i = 1; i <= str2.length; i++) {
+                for (let j = 1; j <= str1.length; j++) {
+                    if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                        );
+                    }
+                }
+            }
+            return matrix[str2.length][str1.length];
         }
 
         function populateColumnOptions() {
