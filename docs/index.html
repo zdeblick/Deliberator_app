@@ -17,12 +17,10 @@
   <button onclick="getSelectedTextInfo()">Send Highlight to Backend</button>
 
   <script>
-    // Enhanced fetch function to show loading message
-    async function fetchData(url, options = {}, outputId = "output") {
-      const outputEl = document.getElementById(outputId);
-      if (outputEl) {
-        outputEl.textContent = "Waking up backend... Please wait ⏳";
-      }
+    // Reusable fetch wrapper
+    async function fetchData(url, options = {}) {
+      const outputEl = document.getElementById("output");
+      outputEl.textContent = "Waking up backend... Please wait ⏳";
 
       try {
         const res = await fetch(url, options);
@@ -35,28 +33,54 @@
           data = await res.text();
         }
 
-        if (outputEl) {
-          outputEl.textContent = typeof data === "string"
-            ? data
-            : JSON.stringify(data, null, 2);
-        }
-
         return data;
       } catch (error) {
-        if (outputEl) {
-          outputEl.textContent = "Error contacting backend: " + error.message;
-        }
-        console.error(error);
+        console.error("Error contacting backend:", error);
+        outputEl.textContent = "Error contacting backend: " + error.message;
+        return null;
       }
     }
 
-    // Fetch from /hello endpoint
-    function fetchHello() {
-      fetchData("https://deliberator-app.onrender.com/hello");
+    // Show hello message from backend
+    async function fetchHello() {
+      const data = await fetchData("https://deliberator-app.onrender.com/hello");
+      if (data) {
+        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+      }
     }
 
-    // Send highlight info to backend
-    function getSelectedTextInfo() {
+    // Send highlight data to backend
+    async function getSelectedTextInfo() {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
         alert("Please highlight some text first.");
+        return;
+      }
+
+      const selectedText = selection.toString();
+      const range = selection.getRangeAt(0);
+      const startOffset = range.startOffset;
+      const endOffset = range.endOffset;
+
+      const payload = {
+        text: selectedText,
+        start: startOffset,
+        end: endOffset
+      };
+
+      console.log("Sending to backend:", payload);
+
+      const response = await fetchData("https://deliberator-app.onrender.com/highlight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (response) {
+        console.log("Response from backend:", response);
+        alert("Highlight sent successfully!");
+      }
+    }
+  </script>
+</body>
+</html>
