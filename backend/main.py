@@ -21,34 +21,34 @@ app.add_middleware(
 panels = {
     0: {
         'argument': 'Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.',
-        'author': 'system',
+        'author': 'Dr. Climate',
         'critiques': [
-            {'text': 'The scientific consensus claim needs more specific evidence', 'start_ind': 85, 'end_ind': 120, 'author': 'system'},
-            {'text': 'What about natural climate variations?', 'start_ind': 0, 'end_ind': 27, 'author': 'system'}
+            {'text': 'The scientific consensus claim needs more specific evidence', 'start_ind': 85, 'end_ind': 120, 'author': 'Skeptic1'},
+            {'text': 'What about natural climate variations?', 'start_ind': 0, 'end_ind': 27, 'author': 'NaturalCycles'}
         ]
     },
     1: {
         'argument': 'Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.',
-        'author': 'system',
+        'author': 'GreenTech',
         'critiques': [
-            {'text': 'Reliability issues during peak demand periods', 'start_ind': 77, 'end_ind': 85, 'author': 'system'},
-            {'text': 'Storage costs not included in analysis', 'start_ind': 50, 'end_ind': 77, 'author': 'system'}
+            {'text': 'Reliability issues during peak demand periods', 'start_ind': 77, 'end_ind': 85, 'author': 'GridExpert'},
+            {'text': 'Storage costs not included in analysis', 'start_ind': 50, 'end_ind': 77, 'author': 'EconomyWatch'}
         ]
     },
     2: {
         'argument': 'Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.',
-        'author': 'system',
+        'author': 'HealthPolicy',
         'critiques': [
-            {'text': 'Wait times can be problematic', 'start_ind': 91, 'end_ind': 130, 'author': 'system'},
-            {'text': 'Different countries have different contexts', 'start_ind': 132, 'end_ind': 162, 'author': 'system'}
+            {'text': 'Wait times can be problematic', 'start_ind': 91, 'end_ind': 130, 'author': 'PatientAdvocate'},
+            {'text': 'Different countries have different contexts', 'start_ind': 132, 'end_ind': 162, 'author': 'ComparativeStudy'}
         ]
     },
     3: {
         'argument': 'Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.',
-        'author': 'system',
+        'author': 'EdTechFuture',
         'critiques': [
-            {'text': 'Risk of reducing human interaction', 'start_ind': 74, 'end_ind': 101, 'author': 'system'},
-            {'text': 'Privacy concerns with student data', 'start_ind': 102, 'end_ind': 141, 'author': 'system'}
+            {'text': 'Risk of reducing human interaction', 'start_ind': 74, 'end_ind': 101, 'author': 'HumanTouch'},
+            {'text': 'Privacy concerns with student data', 'start_ind': 102, 'end_ind': 141, 'author': 'PrivacyWatch'}
         ]
     }
 }
@@ -83,13 +83,14 @@ def convert_to_frontend_format():
     for panel_id, (col_idx, position) in layout.items():
         if panel_id in panels:
             panel_data = panels[panel_id].copy()
-            # Convert critiques to the old format for frontend compatibility
+            # Convert critiques to the old format for frontend compatibility but keep author
             old_format_critiques = []
             for critique in panel_data['critiques']:
                 old_format_critiques.append([
                     critique['text'], 
                     critique['start_ind'], 
-                    critique['end_ind']
+                    critique['end_ind'],
+                    critique['author']  # Include author in the format
                 ])
             panel_data['critiques'] = old_format_critiques
             
@@ -158,13 +159,17 @@ async def add_argument(new_arg: NewArgument):
     """Add a new argument to specified column"""
     global next_panel_id
     
+    # Validate author is provided
+    if not new_arg.author or not new_arg.author.strip():
+        raise HTTPException(status_code=400, detail="Author is required")
+    
     # Create new panel
     panel_id = next_panel_id
     next_panel_id += 1
     
     panels[panel_id] = {
         'argument': new_arg.argument,
-        'author': new_arg.author,
+        'author': new_arg.author.strip(),
         'critiques': []
     }
     
@@ -182,6 +187,10 @@ async def add_critique(new_crit: NewCritique):
     if new_crit.panel_id not in panels:
         raise HTTPException(status_code=400, detail="Invalid panel ID")
     
+    # Validate author is provided
+    if not new_crit.author or not new_crit.author.strip():
+        raise HTTPException(status_code=400, detail="Author is required")
+    
     panel = panels[new_crit.panel_id]
     
     # Validate indices
@@ -192,7 +201,7 @@ async def add_critique(new_crit: NewCritique):
         'text': new_crit.critique_text,
         'start_ind': new_crit.start_ind,
         'end_ind': new_crit.end_ind,
-        'author': new_crit.author
+        'author': new_crit.author.strip()
     }
     
     panel['critiques'].append(critique)
@@ -205,6 +214,10 @@ async def add_rating(new_rating: NewRating):
     # Validate rating values
     if not (1 <= new_rating.quality_rating <= 7) or not (1 <= new_rating.agreement_rating <= 7):
         raise HTTPException(status_code=400, detail="Ratings must be between 1 and 7")
+    
+    # Validate author is provided
+    if not new_rating.author or not new_rating.author.strip():
+        raise HTTPException(status_code=400, detail="Author is required")
     
     # Validate statement exists
     if new_rating.statement_id.startswith("panel_"):
@@ -223,11 +236,12 @@ async def add_rating(new_rating: NewRating):
     else:
         raise HTTPException(status_code=400, detail="Invalid statement ID format")
     
-    # Store rating
-    if new_rating.author not in ratings:
-        ratings[new_rating.author] = {}
+    # Store rating with author
+    author = new_rating.author.strip()
+    if author not in ratings:
+        ratings[author] = {}
     
-    ratings[new_rating.author][new_rating.statement_id] = (
+    ratings[author][new_rating.statement_id] = (
         new_rating.quality_rating,
         new_rating.agreement_rating
     )
@@ -238,6 +252,11 @@ async def add_rating(new_rating: NewRating):
 async def get_ratings():
     """Get all ratings data"""
     return ratings
+
+@app.get("/ratings/{author}")
+async def get_user_ratings(author: str):
+    """Get ratings for a specific author"""
+    return ratings.get(author, {})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
