@@ -85,11 +85,12 @@ def convert_to_frontend_format():
             panel_data = panels[panel_id].copy()
             # Convert critiques to the old format for frontend compatibility but keep author
             old_format_critiques = []
-            for critique in panel_data['critiques']:
+            for critique, critique_ind in enumerate(panel_data['critiques']):
                 old_format_critiques.append([
                     critique['text'], 
                     critique['start_ind'], 
                     critique['end_ind'],
+                    critique_ind,
                     critique['author']  # Include author in the format
                 ])
             panel_data['critiques'] = old_format_critiques
