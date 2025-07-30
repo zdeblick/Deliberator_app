@@ -67,6 +67,18 @@
             cursor: default;
         }
 
+        .argument-section.selected {
+            background-color: #e3f2fd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: -5px;
+        }
+
+        .author-text {
+            font-size: 12px;
+            cursor: default;
+        }
+
         .critiques-section {
             flex: 1;
             padding-left: 15px;
@@ -97,16 +109,17 @@
             box-shadow: 0 2px 8px rgba(0,122,204,0.3);
         }
 
+        .critique.selected {
+            background-color: #e3f2fd;
+            border-left-color: #1976d2;
+            box-shadow: 0 2px 8px rgba(25,118,210,0.4);
+        }
+
         .highlighted-text {
             background-color: #fff3cd;
             border-radius: 2px;
-            padding: 1px 2px;
+            padding: 0;
             transition: all 0.2s ease;
-        }
-
-        .highlighted-text:hover {
-            background-color: #ffeaa7;
-            box-shadow: 0 0 8px rgba(255,193,7,0.6);
         }
 
         .highlighted-text.glow {
@@ -644,8 +657,35 @@
                 }
             } catch (error) {
                 console.error('Error during login:', error);
-                document.getElementById('loginError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+                document.getElementById('loginError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
             }
+        }
+
+        function addMutualHoverHighlight(el1, el2) {
+          const add = () => {
+            el1.classList.add('glow');
+            el2.classList.add('glow');
+          };
+          const remove = () => {
+            el1.classList.remove('glow');
+            el2.classList.remove('glow');
+          };
+          el1.addEventListener('mouseenter', add);
+          el1.addEventListener('mouseleave', remove);
+          el2.addEventListener('mouseenter', add);
+          el2.addEventListener('mouseleave', remove);
+        }
+
+        function clearAllSelections() {
+            // Clear argument selections
+            document.querySelectorAll('.argument-section.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Clear critique selections
+            document.querySelectorAll('.critique.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
         }
 
         async function loadData() {
@@ -751,24 +791,77 @@
                     // Argument section
                     const argumentSection = document.createElement('div');
                     argumentSection.className = 'argument-section';
-                    
+
+                    let result = '';
+
+                    if (panel.critiques.length === 0) {
+                        result = panel.argument;
+                    } else {
+                        // Create an array of all character positions with their critique indices
+                        const positions = new Array(panel.argument.length).fill(null).map(() => []);
+                        
+                        // Mark which characters belong to which critiques
+                        panel.critiques.forEach((critique) => {
+                            const [, start, end, , critiqueIndex] = critique;
+                            for (let i = start; i < end && i < panel.argument.length; i++) {
+                                positions[i].push(critiqueIndex);
+                            }
+                        });
+
+                        // Build the result by grouping consecutive characters with the same critique set
+                        let i = 0;
+                        while (i < panel.argument.length) {
+                            const currentCritiques = positions[i];
+                            
+                            if (currentCritiques.length === 0) {
+                                // No highlights for this character, find all consecutive non-highlighted chars
+                                let j = i;
+                                while (j < panel.argument.length && positions[j].length === 0) {
+                                    j++;
+                                }
+                                result += panel.argument.slice(i, j);
+                                i = j;
+                            } else {
+                                // This character has highlights, find all consecutive chars with the same critique set
+                                let j = i;
+                                while (j < panel.argument.length && 
+                                       positions[j].length === currentCritiques.length &&
+                                       positions[j].every(idx => currentCritiques.includes(idx))) {
+                                    j++;
+                                }
+                                
+                                // Create the highlighted span with all critique indices
+                                const critiqueIndices = currentCritiques.join(',');
+                                const highlightedText = panel.argument.slice(i, j);
+                                result += `<span class="highlighted-text" data-panel-id="${panel.panel_id}" data-critique-index="${critiqueIndices}">${highlightedText}</span>`;
+                                i = j;
+                            }
+                        }
+                    }
+
                     const argumentText = document.createElement('div');
                     argumentText.className = 'argument-text';
-                    argumentText.innerHTML = createHighlightedText(panel.argument, panel.critiques, panel.panel_id);
+                    argumentText.innerHTML = result;
                     
+                    const argumentAuthor = document.createElement('div');
+                    argumentAuthor.className = 'argument-author';
+                    argumentAuthor.innerHTML = `<span class="author-text"> ~  ${panel.author}</span>`;
+
                     // Add click listener for rating functionality
-                    argumentText.addEventListener('click', function(e) {
-                        if (e.target.classList.contains('highlighted-text') || e.target.closest('.argument-text')) {
-                            selectedStatement = {
-                                type: 'argument',
-                                panel_id: panel.panel_id,
-                                text: panel.argument,
-                                statement_id: `panel_${panel.panel_id}`
-                            };
-                        }
+                    argumentSection.addEventListener('click', function(e) {
+                        clearAllSelections();
+                        argumentSection.classList.add('selected');
+                        
+                        selectedStatement = {
+                            type: 'argument',
+                            panel_id: panel.panel_id,
+                            text: panel.argument,
+                            statement_id: `panel_${panel.panel_id}`
+                        };
                     });
                     
                     argumentSection.appendChild(argumentText);
+                    argumentSection.appendChild(argumentAuthor);
 
                     // Critiques section
                     const critiquesSection = document.createElement('div');
@@ -780,30 +873,77 @@
                     if (panel.critiques.length === 0) {
                         critiquesContainer.innerHTML = '<em>No critiques yet</em>';
                     } else {
-                        panel.critiques.forEach((critique, critiqueIndex) => {
+                        panel.critiques.forEach((critique) => {
                             const critiqueDiv = document.createElement('div');
                             critiqueDiv.className = 'critique';
-                            critiqueDiv.textContent = critique[0];
+
+                            const textNode = document.createElement('div');
+                            textNode.textContent = critique[0];
+                            critiqueDiv.appendChild(textNode);
+
+                            const authorNode = document.createElement('div');
+                            authorNode.className = 'author-text';
+                            authorNode.textContent = `~ ${critique[3]}`;
+                            critiqueDiv.appendChild(authorNode);
+
                             critiqueDiv.dataset.columnIndex = columnIndex;
                             critiqueDiv.dataset.panelIndex = panelIndex;
-                            critiqueDiv.dataset.critiqueIndex = critiqueIndex;
-                            critiqueDiv.addEventListener('mouseenter', highlightCorrespondingText);
-                            critiqueDiv.addEventListener('mouseleave', removeHighlight);
-                            
+                            critiqueDiv.dataset.critiqueIndex = critique[4];
+
                             // Add click listener for rating functionality  
                             critiqueDiv.addEventListener('click', function() {
+                                clearAllSelections();
+                                critiqueDiv.classList.add('selected');
+                                
                                 selectedStatement = {
                                     type: 'critique',
                                     panel_id: panel.panel_id,
-                                    critique_index: critiqueIndex,
                                     text: critique[0],
-                                    statement_id: `panel_${panel.panel_id}_critique_${critiqueIndex}`
+                                    statement_id: `panel_${panel.panel_id}_critique_${critique[4]}`
                                 };
                             });
                             
                             critiquesContainer.appendChild(critiqueDiv);
                         });
                     }
+
+                    // Set up mutual highlighting for critiques
+                    panel.critiques.forEach((critique) => {
+                        const critiqueIndex = critique[4];
+                        const critiqueDiv = critiquesContainer.querySelector(`[data-critique-index="${critiqueIndex}"]`);
+                        
+                        // Find all highlight spans that contain this critique index
+                        const textSpans = argumentText.querySelectorAll(`.highlighted-text`);
+                        const spansForThisCritique = [];
+                        textSpans.forEach(span => {
+                            const critiqueIndices = span.dataset.critiqueIndex.split(',').map(idx => parseInt(idx));
+                            if (critiqueIndices.includes(critiqueIndex)) {
+                                spansForThisCritique.push(span);
+                            }
+                        });
+                        
+                        // Add hover listeners that highlight all spans for this critique
+                        if (critiqueDiv && spansForThisCritique.length > 0) {
+                            const addGlow = () => {
+                                critiqueDiv.classList.add('glow');
+                                spansForThisCritique.forEach(span => span.classList.add('glow'));
+                            };
+                            const removeGlow = () => {
+                                critiqueDiv.classList.remove('glow');
+                                spansForThisCritique.forEach(span => span.classList.remove('glow'));
+                            };
+                            
+                            // Add listeners to critique div
+                            critiqueDiv.addEventListener('mouseenter', addGlow);
+                            critiqueDiv.addEventListener('mouseleave', removeGlow);
+                            
+                            // Add listeners to all spans for this critique
+                            spansForThisCritique.forEach(span => {
+                                span.addEventListener('mouseenter', addGlow);
+                                span.addEventListener('mouseleave', removeGlow);
+                            });
+                        }
+                    });
                     
                     critiquesSection.appendChild(critiquesContainer);
 
@@ -819,75 +959,12 @@
             populateColumnOptions();
         }
 
-        function createHighlightedText(text, critiques, panelId) {
-            if (critiques.length === 0) return text;
-
-            // Sort critiques by start index
-            const sortedCritiques = [...critiques].sort((a, b) => a[1] - b[1]);
-            
-            let result = '';
-            let lastIndex = 0;
-
-            sortedCritiques.forEach((critique, critiqueIndex) => {
-                const [, start, end] = critique;
-                
-                // Add text before highlight
-                result += text.slice(lastIndex, start);
-                
-                // Add highlighted text
-                const highlightedSpan = `<span class="highlighted-text" data-panel-id="${panelId}" data-critique-index="${critiqueIndex}">${text.slice(start, end)}</span>`;
-                result += highlightedSpan;
-                
-                lastIndex = end;
-            });
-
-            // Add remaining text
-            result += text.slice(lastIndex);
-
-            return result;
-        }
-
-        function highlightCorrespondingText(event) {
-            const critiqueElement = event.target;
-            const panelId = critiqueElement.dataset.panelId || 
-                           data[critiqueElement.dataset.columnIndex][critiqueElement.dataset.panelIndex].panel_id;
-            const critiqueIndex = critiqueElement.dataset.critiqueIndex;
-
-            // Add glow to critique
-            critiqueElement.classList.add('glow');
-
-            // Find and highlight corresponding text
-            const textSpan = document.querySelector(
-                `.highlighted-text[data-panel-id="${panelId}"][data-critique-index="${critiqueIndex}"]`
-            );
-            if (textSpan) {
-                textSpan.classList.add('glow');
-            }
-        }
-
-        function removeHighlight(event) {
-            const critiqueElement = event.target;
-            const panelId = critiqueElement.dataset.panelId || 
-                           data[critiqueElement.dataset.columnIndex][critiqueElement.dataset.panelIndex].panel_id;
-            const critiqueIndex = critiqueElement.dataset.critiqueIndex;
-
-            // Remove glow from critique
-            critiqueElement.classList.remove('glow');
-
-            // Remove highlight from corresponding text
-            const textSpan = document.querySelector(
-                `.highlighted-text[data-panel-id="${panelId}"][data-critique-index="${critiqueIndex}"]`
-            );
-            if (textSpan) {
-                textSpan.classList.remove('glow');
-            }
-        }
-
         // Add event listeners for text highlighting
         document.addEventListener('mouseup', function(e) {
             // Small delay to ensure selection is complete
             setTimeout(handleTextSelection, 10);
         });
+
 
         function handleTextSelection() {
             const selection = window.getSelection();
@@ -1048,7 +1125,6 @@
 
         function closeRatingModal() {
             document.getElementById('ratingModal').style.display = 'none';
-            selectedStatement = null;
         }
 
         function closeModal(modalId) {
@@ -1092,7 +1168,7 @@
                 }
             } catch (error) {
                 console.error('Error submitting argument:', error);
-                document.getElementById('argumentError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+                document.getElementById('argumentError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
             }
         }
 
@@ -1131,7 +1207,7 @@
                 }
             } catch (error) {
                 console.error('Error submitting critique:', error);
-                document.getElementById('critiqueError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+                document.getElementById('critiqueError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
             }
         }
 
@@ -1169,7 +1245,7 @@
                 }
             } catch (error) {
                 console.error('Error submitting rating:', error);
-                document.getElementById('ratingError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+                document.getElementById('ratingError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
             }
         }
 
