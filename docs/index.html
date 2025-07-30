@@ -1,208 +1,1194 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Argument & Critiques</title>
-  <style>
-    body {
-      display: flex;
-      gap: 20px;
-      padding: 20px;
-      font-family: sans-serif;
-    }
-    .column {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .panel {
-      display: flex;
-      flex-direction: column;
-      border: 1px solid #ccc;
-      padding: 10px;
-      gap: 10px;
-    }
-    .argument, .critiques {
-      width: 300px;
-      overflow-y: auto;
-      max-height: 200px;
-      padding: 5px;
-      border: 1px solid #eee;
-    }
-    .highlight {
-      background-color: yellow;
-    }
-    .critique-item:hover {
-      background-color: #ffeaa7;
-      cursor: pointer;
-    }
-    .form {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arguments and Critiques</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .columns {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
+
+        .column {
+            min-width: 400px;
+            background-color: #e8e8e8;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .column-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            padding: 10px;
+            background-color: #d0d0d0;
+            border-radius: 5px;
+        }
+
+        .panel {
+            background-color: white;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            min-height: 200px;
+        }
+
+        .argument-section {
+            flex: 1;
+            border-right: 2px solid #eee;
+            padding-right: 15px;
+        }
+
+        .argument-text {
+            line-height: 1.6;
+            cursor: default;
+        }
+
+        .critiques-section {
+            flex: 1;
+            padding-left: 15px;
+        }
+
+        .critiques-container {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+
+        .critique {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border-left: 3px solid #007acc;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .critique:hover {
+            background-color: #e6f3ff;
+            border-left-color: #0056b3;
+            box-shadow: 0 2px 8px rgba(0,122,204,0.3);
+        }
+
+        .highlighted-text {
+            background-color: #fff3cd;
+            border-radius: 2px;
+            padding: 1px 2px;
+            transition: all 0.2s ease;
+        }
+
+        .highlighted-text:hover {
+            background-color: #ffeaa7;
+            box-shadow: 0 0 8px rgba(255,193,7,0.6);
+        }
+
+        .highlighted-text.glow {
+            background-color: #ffeaa7;
+            box-shadow: 0 0 8px rgba(255,193,7,0.6);
+        }
+
+        .critique.glow {
+            background-color: #e6f3ff;
+            border-left-color: #0056b3;
+            box-shadow: 0 2px 8px rgba(0,122,204,0.3);
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .critique-modal .modal-content {
+            display: flex;
+            gap: 20px;
+        }
+
+        .critique-form-section {
+            flex: 1;
+        }
+
+        .argument-preview-section {
+            flex: 1;
+            border-left: 2px solid #ddd;
+            padding-left: 20px;
+        }
+
+        .argument-preview {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .login-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+
+        .login-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .user-info {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background-color: #007acc;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            z-index: 1000;
+        }
+
+        .rating-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        .rating-label {
+            font-weight: bold;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        .rating-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rating-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .rating-option input[type="radio"] {
+            margin-bottom: 5px;
+        }
+
+        .rating-option label {
+            font-size: 11px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .statement-preview {
+            background-color: #e3f2fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .modal-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-actions {
+            text-align: right;
+            margin-top: 20px;
+        }
+
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007acc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-message {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .loading-submessage {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .selection-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 1500;
+            max-width: 400px;
+        }
+
+        .status-message.status-error {
+            background-color: #dc3545;
+        }
+
+        .status-message.status-warning {
+            background-color: #ffc107;
+            color: #333;
+        }
+    </style>
 </head>
 <body>
-  <script>
-    const backendURL = "https://deliberator-app.onrender.com";
+    <!-- Login Screen -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-content">
+            <h2 style="margin-bottom: 20px;">Welcome to Arguments and Critiques</h2>
+            <div id="loginError"></div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password (optional for new accounts):</label>
+                    <input type="password" id="password">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="createAccount"> Create new account
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn">Login / Sign Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    async function fetchData(endpoint) {
-      try {
-        const res = await fetch(`${backendURL}${endpoint}`);
-        if (!res.ok) throw new Error("Failed to fetch");
-        return await res.json();
-      } catch (err) {
-        console.error("Fetch error:", err);
-        return null;
-      }
-    }
+    <!-- User Info Display -->
+    <div id="userInfo" class="user-info" style="display: none;">
+        Logged in as: <span id="currentUser"></span>
+    </div>
 
-    function createPanel(panelData, panelId, columnIndex) {
-      const panel = document.createElement('div');
-      panel.className = 'panel';
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Arguments and Critiques</h1>
+        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 12px;">Version 2.0</div>
+        
+        <div class="controls">
+            <button class="btn" onclick="showArgumentModal()">Add Argument</button>
+            <button class="btn" onclick="showCritiqueModal()">Add Critique</button>
+            <button class="btn" onclick="showRatingModal()">Rate Statement</button>
+        </div>
 
-      const argDiv = document.createElement('div');
-      argDiv.className = 'argument';
-      const rawArg = panelData.argument;
-      const spanMap = {};
-      let selectedStart = null;
-      let selectedEnd = null;
+        <div class="columns" id="columns">
+            <!-- Columns will be dynamically populated -->
+        </div>
 
-      for (let i = 0; i < rawArg.length; i++) {
-        const span = document.createElement('span');
-        span.textContent = rawArg[i];
-        span.dataset.index = i;
-        argDiv.appendChild(span);
-        spanMap[i] = span;
-      }
+        <div id="statusMessage" class="status-message" style="display: none;"></div>
+    </div>
 
-      const critDiv = document.createElement('div');
-      critDiv.className = 'critiques';
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-message" id="loadingMessage">Connecting to server...</div>
+            <div class="loading-submessage" id="loadingSubmessage">This may take a moment</div>
+        </div>
+    </div>
 
-      panelData.critiques.forEach(([text, start, end], idx) => {
-        const item = document.createElement('div');
-        item.className = 'critique-item';
-        item.textContent = text;
+    <!-- Add Argument Modal -->
+    <div id="argumentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('argumentModal')">&times;</span>
+            <div class="modal-header">Add New Argument</div>
+            <div id="argumentError"></div>
+            <form onsubmit="submitArgument(event)">
+                <div class="form-group">
+                    <label for="argumentColumn">Column:</label>
+                    <select id="argumentColumn" required>
+                        <!-- Options populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="argumentText">Argument:</label>
+                    <textarea id="argumentText" placeholder="Enter your argument..." required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="closeModal('argumentModal')" style="background-color: #6c757d;">Cancel</button>
+                    <button type="submit" class="btn">Add Argument</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        item.addEventListener('mouseenter', () => {
-          for (let i = start; i < end; i++) {
-            spanMap[i]?.classList.add('highlight');
-          }
+    <!-- Add Critique Modal -->
+    <div id="critiqueModal" class="modal critique-modal">
+        <div class="modal-content">
+            <div class="critique-form-section">
+                <span class="close" onclick="closeCritiqueModal()">&times;</span>
+                <div class="modal-header">Add New Critique</div>
+                <div id="critiqueError"></div>
+                <div id="selectionInfo" class="selection-info" style="display: none;"></div>
+                <form onsubmit="submitCritique(event)">
+                    <div class="form-group">
+                        <label for="critiqueText">Critique:</label>
+                        <textarea id="critiqueText" placeholder="Enter your critique..." required></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn" onclick="closeCritiqueModal()" style="background-color: #6c757d;">Cancel</button>
+                        <button type="submit" class="btn">Add Critique</button>
+                    </div>
+                </form>
+            </div>
+            <div class="argument-preview-section">
+                <div class="modal-header">Argument Being Critiqued</div>
+                <div id="argumentPreview" class="argument-preview">
+                    Select text from an argument first.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rate Statement Modal -->
+    <div id="ratingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRatingModal()">&times;</span>
+            <div class="modal-header">Rate Statement</div>
+            <div id="ratingError"></div>
+            <div id="statementPreview" class="statement-preview" style="display: none;"></div>
+            <form onsubmit="submitRating(event)">
+                <div class="rating-grid">
+                    <div class="rating-label">This statement is written:</div>
+                    <div class="rating-options">
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="1" id="quality1" required>
+                            <label for="quality1">Very Poorly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="2" id="quality2">
+                            <label for="quality2">Poorly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="3" id="quality3">
+                            <label for="quality3">Not Well</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="4" id="quality4">
+                            <label for="quality4">Intelligibly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="5" id="quality5">
+                            <label for="quality5">Adequately</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="6" id="quality6">
+                            <label for="quality6">Well</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="7" id="quality7">
+                            <label for="quality7">Very Well</label>
+                        </div>
+                    </div>
+                    
+                    <div class="rating-label">With this statement, I:</div>
+                    <div class="rating-options">
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="1" id="agreement1" required>
+                            <label for="agreement1">Strongly Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="2" id="agreement2">
+                            <label for="agreement2">Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="3" id="agreement3">
+                            <label for="agreement3">Somewhat Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="4" id="agreement4">
+                            <label for="agreement4">am Neutral</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="5" id="agreement5">
+                            <label for="agreement5">Somewhat Agree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="6" id="agreement6">
+                            <label for="agreement6">Agree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="7" id="agreement7">
+                            <label for="agreement7">Strongly Agree</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="closeRatingModal()" style="background-color: #6c757d;">Cancel</button>
+                    <button type="submit" class="btn">Submit Rating</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://deliberator-app.onrender.com';
+        let data = [];
+        let selectedText = null;
+        let currentUser = null;
+        let selectedStatement = null;
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show login screen first
+            document.getElementById('loginContainer').style.display = 'flex';
         });
 
-        item.addEventListener('mouseleave', () => {
-          for (let i = start; i < end; i++) {
-            spanMap[i]?.classList.remove('highlight');
-          }
-        });
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const createAccount = document.getElementById('createAccount').checked;
+            
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password || null,
+                        create_account: createAccount
+                    })
+                });
 
-        critDiv.appendChild(item);
-      });
-
-      Object.keys(spanMap).forEach(i => {
-        const span = spanMap[i];
-        span.addEventListener('mouseenter', () => {
-          panelData.critiques.forEach(([text, start, end], idx) => {
-            if (i >= start && i < end) {
-              critDiv.children[idx]?.classList.add('highlight');
+                if (response.ok) {
+                    const result = await response.json();
+                    currentUser = username;
+                    
+                    // Hide login screen and show main app
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('userInfo').style.display = 'block';
+                    document.getElementById('currentUser').textContent = currentUser;
+                    
+                    // Load the main data
+                    await loadData();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('loginError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                console.error('Error during login:', error);
+                document.getElementById('loginError').innerHTML = '<div class="error">Network error. Please try again.</div>';
             }
-          });
-        });
-        span.addEventListener('mouseleave', () => {
-          panelData.critiques.forEach(([text, start, end], idx) => {
-            if (i >= start && i < end) {
-              critDiv.children[idx]?.classList.remove('highlight');
+        }
+
+        async function loadData() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const loadingSubmessage = document.getElementById('loadingSubmessage');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Show loading overlay
+            loadingOverlay.style.display = 'flex';
+            statusMessage.style.display = 'none';
+            
+            const startTime = Date.now();
+            let coldStartWarningShown = false;
+            
+            // Show cold start warning after 3 seconds
+            const coldStartTimer = setTimeout(() => {
+                if (!coldStartWarningShown) {
+                    loadingMessage.textContent = 'Backend is starting up...';
+                    loadingSubmessage.textContent = 'Render services can take up to 50 seconds to wake up from sleep. Please be patient!';
+                    coldStartWarningShown = true;
+                }
+            }, 3000);
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+                
+                const response = await fetch(`${API_BASE}/data`, {
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                clearTimeout(coldStartTimer);
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
+                data = await response.json();
+                loadingOverlay.style.display = 'none';
+                
+                // Show success message if it was a slow load
+                const loadTime = Date.now() - startTime;
+                if (loadTime > 5000) {
+                    statusMessage.className = 'status-message status-warning';
+                    statusMessage.textContent = `Connected successfully! (took ${Math.round(loadTime/1000)} seconds)`;
+                    statusMessage.style.display = 'block';
+                    
+                    // Hide success message after 5 seconds
+                    setTimeout(() => {
+                        statusMessage.style.display = 'none';
+                    }, 5000);
+                }
+                
+                renderColumns();
+                
+            } catch (error) {
+                clearTimeout(coldStartTimer);
+                loadingOverlay.style.display = 'none';
+                
+                console.error('Error loading data:', error);
+                
+                let errorMessage = 'Unable to connect to the server. ';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage += 'The request timed out after 60 seconds. The server may be experiencing issues.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Please check that the backend is running and accessible.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                statusMessage.className = 'status-message status-error';
+                statusMessage.innerHTML = `
+                    ${errorMessage}
+                    <br><br>
+                    <button class="btn" onclick="loadData()" style="margin-top: 10px;">Try Again</button>
+                `;
+                statusMessage.style.display = 'block';
             }
-          });
+        }
+
+        function renderColumns() {
+            const columnsContainer = document.getElementById('columns');
+            columnsContainer.innerHTML = '';
+
+            data.forEach((column, columnIndex) => {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'column';
+                
+                const header = document.createElement('div');
+                header.className = 'column-header';
+                header.textContent = `Column ${columnIndex + 1}`;
+                columnDiv.appendChild(header);
+
+                column.forEach((panel, panelIndex) => {
+                    const panelDiv = document.createElement('div');
+                    panelDiv.className = 'panel';
+                    panelDiv.dataset.columnIndex = columnIndex;
+                    panelDiv.dataset.panelIndex = panelIndex;
+
+                    // Argument section
+                    const argumentSection = document.createElement('div');
+                    argumentSection.className = 'argument-section';
+                    
+                    const argumentText = document.createElement('div');
+                    argumentText.className = 'argument-text';
+                    argumentText.innerHTML = createHighlightedText(panel.argument, panel.critiques, panel.panel_id);
+                    
+                    // Add click listener for rating functionality
+                    argumentText.addEventListener('click', function(e) {
+                        if (e.target.classList.contains('highlighted-text') || e.target.closest('.argument-text')) {
+                            selectedStatement = {
+                                type: 'argument',
+                                panel_id: panel.panel_id,
+                                text: panel.argument,
+                                statement_id: `panel_${panel.panel_id}`
+                            };
+                        }
+                    });
+                    
+                    argumentSection.appendChild(argumentText);
+
+                    // Critiques section
+                    const critiquesSection = document.createElement('div');
+                    critiquesSection.className = 'critiques-section';
+                    
+                    const critiquesContainer = document.createElement('div');
+                    critiquesContainer.className = 'critiques-container';
+                    
+                    if (panel.critiques.length === 0) {
+                        critiquesContainer.innerHTML = '<em>No critiques yet</em>';
+                    } else {
+                        panel.critiques.forEach((critique, critiqueIndex) => {
+                            const critiqueDiv = document.createElement('div');
+                            critiqueDiv.className = 'critique';
+                            critiqueDiv.textContent = critique[0];
+                            critiqueDiv.dataset.columnIndex = columnIndex;
+                            critiqueDiv.dataset.panelIndex = panelIndex;
+                            critiqueDiv.dataset.critiqueIndex = critiqueIndex;
+                            critiqueDiv.addEventListener('mouseenter', highlightCorrespondingText);
+                            critiqueDiv.addEventListener('mouseleave', removeHighlight);
+                            
+                            // Add click listener for rating functionality  
+                            critiqueDiv.addEventListener('click', function() {
+                                selectedStatement = {
+                                    type: 'critique',
+                                    panel_id: panel.panel_id,
+                                    critique_index: critiqueIndex,
+                                    text: critique[0],
+                                    statement_id: `panel_${panel.panel_id}_critique_${critiqueIndex}`
+                                };
+                            });
+                            
+                            critiquesContainer.appendChild(critiqueDiv);
+                        });
+                    }
+                    
+                    critiquesSection.appendChild(critiquesContainer);
+
+                    panelDiv.appendChild(argumentSection);
+                    panelDiv.appendChild(critiquesSection);
+                    columnDiv.appendChild(panelDiv);
+                });
+
+                columnsContainer.appendChild(columnDiv);
+            });
+
+            // Populate column options in modals
+            populateColumnOptions();
+        }
+
+        function createHighlightedText(text, critiques, panelId) {
+            if (critiques.length === 0) return text;
+
+            // Sort critiques by start index
+            const sortedCritiques = [...critiques].sort((a, b) => a[1] - b[1]);
+            
+            let result = '';
+            let lastIndex = 0;
+
+            sortedCritiques.forEach((critique, critiqueIndex) => {
+                const [, start, end] = critique;
+                
+                // Add text before highlight
+                result += text.slice(lastIndex, start);
+                
+                // Add highlighted text
+                const highlightedSpan = `<span class="highlighted-text" data-panel-id="${panelId}" data-critique-index="${critiqueIndex}">${text.slice(start, end)}</span>`;
+                result += highlightedSpan;
+                
+                lastIndex = end;
+            });
+
+            // Add remaining text
+            result += text.slice(lastIndex);
+
+            return result;
+        }
+
+        function highlightCorrespondingText(event) {
+            const critiqueElement = event.target;
+            const panelId = critiqueElement.dataset.panelId || 
+                           data[critiqueElement.dataset.columnIndex][critiqueElement.dataset.panelIndex].panel_id;
+            const critiqueIndex = critiqueElement.dataset.critiqueIndex;
+
+            // Add glow to critique
+            critiqueElement.classList.add('glow');
+
+            // Find and highlight corresponding text
+            const textSpan = document.querySelector(
+                `.highlighted-text[data-panel-id="${panelId}"][data-critique-index="${critiqueIndex}"]`
+            );
+            if (textSpan) {
+                textSpan.classList.add('glow');
+            }
+        }
+
+        function removeHighlight(event) {
+            const critiqueElement = event.target;
+            const panelId = critiqueElement.dataset.panelId || 
+                           data[critiqueElement.dataset.columnIndex][critiqueElement.dataset.panelIndex].panel_id;
+            const critiqueIndex = critiqueElement.dataset.critiqueIndex;
+
+            // Remove glow from critique
+            critiqueElement.classList.remove('glow');
+
+            // Remove highlight from corresponding text
+            const textSpan = document.querySelector(
+                `.highlighted-text[data-panel-id="${panelId}"][data-critique-index="${critiqueIndex}"]`
+            );
+            if (textSpan) {
+                textSpan.classList.remove('glow');
+            }
+        }
+
+        // Add event listeners for text highlighting
+        document.addEventListener('mouseup', function(e) {
+            // Small delay to ensure selection is complete
+            setTimeout(handleTextSelection, 10);
         });
-      });
 
-      // Capture highlight selection
-      argDiv.addEventListener('mouseup', () => {
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
+        function handleTextSelection() {
+            const selection = window.getSelection();
+            
+            if (selection.rangeCount === 0) {
+                return;
+            }
+            
+            const selectedString = selection.toString().trim();
+            
+            if (selectedString === '') {
+                return;
+            }
 
-        const range = selection.getRangeAt(0);
-        if (!argDiv.contains(range.startContainer) || !argDiv.contains(range.endContainer)) return;
-
-        let startIndex = parseInt(range.startContainer.parentElement?.dataset.index);
-        let endIndex = parseInt(range.endContainer.parentElement?.dataset.index) + 1;
-
-        if (!isNaN(startIndex) && !isNaN(endIndex)) {
-          selectedStart = startIndex;
-          selectedEnd = endIndex;
+            // Find which panel this selection belongs to
+            const range = selection.getRangeAt(0);
+            
+            // Get all panels and check which one contains the selection
+            const panels = document.querySelectorAll('.panel');
+            let targetPanel = null;
+            let targetColumnIndex = -1;
+            let targetPanelIndex = -1;
+            
+            for (let panel of panels) {
+                const argumentSection = panel.querySelector('.argument-section');
+                if (argumentSection) {
+                    // Check if the selection is within this argument section
+                    try {
+                        if (argumentSection.contains(range.startContainer) || 
+                            argumentSection.contains(range.endContainer) ||
+                            range.intersectsNode(argumentSection)) {
+                            targetPanel = panel;
+                            targetColumnIndex = parseInt(panel.dataset.columnIndex);
+                            targetPanelIndex = parseInt(panel.dataset.panelIndex);
+                            break;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+            
+            if (!targetPanel || targetColumnIndex === -1 || targetPanelIndex === -1) {
+                return;
+            }
+            
+            // Get the panel_id for the new backend structure
+            const panelId = data[targetColumnIndex][targetPanelIndex].panel_id;
+            
+            // Get the original text
+            if (!data[targetColumnIndex] || !data[targetColumnIndex][targetPanelIndex]) {
+                return;
+            }
+            
+            const originalText = data[targetColumnIndex][targetPanelIndex].argument;
+            
+            // Find the position in original text
+            let startIndex = originalText.indexOf(selectedString);
+            if (startIndex !== -1) {
+                selectedText = {
+                    columnIndex: targetColumnIndex,
+                    panelIndex: targetPanelIndex,
+                    panelId: panelId,
+                    text: selectedString,
+                    startIndex: startIndex,
+                    endIndex: startIndex + selectedString.length
+                };
+                
+                // Visual feedback - highlight the selected text briefly
+                showSelectionFeedback();
+                return;
+            }
         }
-      });
 
-      // Critique form
-      const form = document.createElement('div');
-      form.className = 'form';
-
-      const textarea = document.createElement('textarea');
-      textarea.rows = 2;
-      textarea.placeholder = "Enter critique...";
-
-      const submit = document.createElement('button');
-      submit.textContent = "Submit Critique";
-      submit.onclick = async () => {
-        const critiqueText = textarea.value.trim();
-        if (!critiqueText || selectedStart === null || selectedEnd === null) {
-          alert("Please highlight some text in an argument and write a critique.");
-          return;
+        function showSelectionFeedback() {
+            // Create a temporary visual indicator
+            const feedback = document.createElement('div');
+            feedback.innerHTML = `✓ Selected: "${selectedText.text}"`;
+            feedback.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 1000;
+                font-size: 14px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            `;
+            
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+                if (feedback.parentNode) {
+                    feedback.parentNode.removeChild(feedback);
+                }
+            }, 2000);
         }
 
-        const payload = {
-          argument: rawArg,
-          critique: critiqueText,
-          start_ind: selectedStart,
-          end_ind: selectedEnd,
-          author: "demo_user"
-        };
-
-        try {
-          const res = await fetch(`${backendURL}/critique`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const result = await res.json();
-          alert(result.message || "Critique submitted.");
-          location.reload(); // Reload to show update
-        } catch (err) {
-          console.error(err);
-          alert("Failed to submit critique.");
+        function populateColumnOptions() {
+            const select = document.getElementById('argumentColumn');
+            select.innerHTML = '';
+            
+            data.forEach((_, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Column ${index + 1}`;
+                select.appendChild(option);
+            });
         }
-      };
 
-      form.appendChild(textarea);
-      form.appendChild(submit);
+        function showArgumentModal() {
+            document.getElementById('argumentModal').style.display = 'block';
+            document.getElementById('argumentError').innerHTML = '';
+        }
 
-      panel.appendChild(argDiv);
-      panel.appendChild(critDiv);
-      panel.appendChild(form);
+        function showCritiqueModal() {
+            if (!selectedText) {
+                alert('Please select text from an argument first to add a critique.');
+                return;
+            }
 
-      return panel;
-    }
+            document.getElementById('critiqueModal').style.display = 'block';
+            document.getElementById('critiqueError').innerHTML = '';
+            
+            const selectionInfo = document.getElementById('selectionInfo');
+            selectionInfo.style.display = 'block';
+            selectionInfo.innerHTML = `Selected text: "${selectedText.text}" (Column ${selectedText.columnIndex + 1}, Panel ${selectedText.panelIndex + 1})`;
+            
+            // Show the full argument in the preview
+            const argumentPreview = document.getElementById('argumentPreview');
+            const fullArgument = data[selectedText.columnIndex][selectedText.panelIndex].argument;
+            const beforeSelection = fullArgument.substring(0, selectedText.startIndex);
+            const selection = fullArgument.substring(selectedText.startIndex, selectedText.endIndex);
+            const afterSelection = fullArgument.substring(selectedText.endIndex);
+            
+            argumentPreview.innerHTML = `${beforeSelection}<span style="background-color: #ffeaa7; padding: 1px 2px; border-radius: 2px;">${selection}</span>${afterSelection}`;
+        }
 
-    async function renderData() {
-      const data = await fetchData("/data");
-      if (!data) return;
+        function showRatingModal() {
+            if (!selectedStatement) {
+                alert('Please click on an argument or critique first to rate it.');
+                return;
+            }
 
-      data.forEach((col, colIdx) => {
-        const columnEl = document.createElement('div');
-        columnEl.className = 'column';
+            document.getElementById('ratingModal').style.display = 'block';
+            document.getElementById('ratingError').innerHTML = '';
+            
+            const statementPreview = document.getElementById('statementPreview');
+            statementPreview.style.display = 'block';
+            statementPreview.innerHTML = `<strong>${selectedStatement.type === 'argument' ? 'Argument' : 'Critique'}:</strong> "${selectedStatement.text}"`;
+            
+            // Clear previous ratings
+            document.querySelectorAll('input[name="quality"]').forEach(input => input.checked = false);
+            document.querySelectorAll('input[name="agreement"]').forEach(input => input.checked = false);
+        }
 
-        col.forEach((panelData, panelIdx) => {
-          const panel = createPanel(panelData, panelIdx, colIdx);
-          columnEl.appendChild(panel);
-        });
+        function closeRatingModal() {
+            document.getElementById('ratingModal').style.display = 'none';
+            selectedStatement = null;
+        }
 
-        document.body.appendChild(columnEl);
-      });
-    }
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
 
-    renderData();
-  </script>
+        function closeCritiqueModal() {
+            document.getElementById('critiqueModal').style.display = 'none';
+            document.getElementById('selectionInfo').style.display = 'none';
+            // Clear selection
+            window.getSelection().removeAllRanges();
+            selectedText = null;
+        }
+
+        async function submitArgument(event) {
+            event.preventDefault();
+            
+            const columnIndex = parseInt(document.getElementById('argumentColumn').value);
+            const argumentText = document.getElementById('argumentText').value.trim();
+            
+            try {
+                const response = await fetch(`${API_BASE}/argument`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        column_index: columnIndex,
+                        argument: argumentText,
+                        author: currentUser
+                    })
+                });
+
+                if (response.ok) {
+                    closeModal('argumentModal');
+                    document.getElementById('argumentText').value = '';
+                    await loadData();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('argumentError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                console.error('Error submitting argument:', error);
+                document.getElementById('argumentError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+            }
+        }
+
+        async function submitCritique(event) {
+            event.preventDefault();
+            
+            if (!selectedText) {
+                document.getElementById('critiqueError').innerHTML = '<div class="error">No text selected</div>';
+                return;
+            }
+            
+            const critiqueText = document.getElementById('critiqueText').value.trim();
+            
+            try {
+                const response = await fetch(`${API_BASE}/critique`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        panel_id: selectedText.panelId,
+                        critique_text: critiqueText,
+                        start_ind: selectedText.startIndex,
+                        end_ind: selectedText.endIndex,
+                        author: currentUser
+                    })
+                });
+
+                if (response.ok) {
+                    closeCritiqueModal();
+                    document.getElementById('critiqueText').value = '';
+                    await loadData();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('critiqueError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                console.error('Error submitting critique:', error);
+                document.getElementById('critiqueError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+            }
+        }
+
+        async function submitRating(event) {
+            event.preventDefault();
+            
+            if (!selectedStatement) {
+                document.getElementById('ratingError').innerHTML = '<div class="error">No statement selected</div>';
+                return;
+            }
+            
+            const qualityRating = parseInt(document.querySelector('input[name="quality"]:checked').value);
+            const agreementRating = parseInt(document.querySelector('input[name="agreement"]:checked').value);
+            
+            try {
+                const response = await fetch(`${API_BASE}/rating`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        statement_id: selectedStatement.statement_id,
+                        quality_rating: qualityRating,
+                        agreement_rating: agreementRating,
+                        author: currentUser
+                    })
+                });
+
+                if (response.ok) {
+                    closeRatingModal();
+                    alert('Rating submitted successfully!');
+                } else {
+                    const error = await response.json();
+                    document.getElementById('ratingError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                console.error('Error submitting rating:', error);
+                document.getElementById('ratingError').innerHTML = '<div class="error">Network error. Please try again.</div>';
+            }
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const argumentModal = document.getElementById('argumentModal');
+            const critiqueModal = document.getElementById('critiqueModal');
+            const ratingModal = document.getElementById('ratingModal');
+            
+            if (event.target === argumentModal) {
+                closeModal('argumentModal');
+            }
+            if (event.target === critiqueModal) {
+                closeCritiqueModal();
+            }
+            if (event.target === ratingModal) {
+                closeRatingModal();
+            }
+        }
+    </script>
 </body>
 </html>
