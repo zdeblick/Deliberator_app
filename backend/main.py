@@ -90,8 +90,8 @@ def convert_to_frontend_format():
                     critique['text'], 
                     critique['start_ind'], 
                     critique['end_ind'],
-                    critique_ind,
-                    critique['author']  # Include author in the format
+                    critique['author'],  # Include author in the format
+                    critique_ind
                 ])
             panel_data['critiques'] = old_format_critiques
             
