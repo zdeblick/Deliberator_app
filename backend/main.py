@@ -52,23 +52,14 @@ async def init_database():
                 password VARCHAR(255)
             )
         ''')
-
-        # 
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS statements (
-                id SERIAL PRIMARY KEY,
-                statement_type TEXT NOT NULL
-            )
-        ''')
         
-        # Create arguments table
+        # Create arguments table - removed column_index and position_in_column
+        # These will be calculated dynamically by the positioning algorithm
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS arguments (
-                argument_id INTEGER PRIMARY KEY REFERENCES statements(id),
+                argument_id SERIAL PRIMARY KEY,
                 argument TEXT NOT NULL,
                 author VARCHAR(255) NOT NULL,
-                column_index INTEGER NOT NULL,
-                position_in_column INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -76,28 +67,36 @@ async def init_database():
         # Create critiques table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS critiques (
-                critique_id INTEGER PRIMARY KEY REFERENCES statements(id),
+                critique_id SERIAL PRIMARY KEY,
                 argument_id INTEGER REFERENCES arguments(argument_id) ON DELETE CASCADE,
                 text TEXT NOT NULL,
                 start_ind INTEGER NOT NULL,
                 end_ind INTEGER NOT NULL,
                 author VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                category_index INTEGER NOT NULL,
-                quality INTEGER NOT NULL
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
-        # Create ratings table
+        # Create ratings table using string-based statement IDs
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS ratings (
                 rating_id SERIAL PRIMARY KEY,
-                ratee_id INTEGER REFERENCES statements(id) ON DELETE CASCADE,
+                statement_id TEXT NOT NULL,
                 author VARCHAR(255) NOT NULL,
                 quality_rating INTEGER CHECK (quality_rating >= 1 AND quality_rating <= 7),
                 agreement_rating INTEGER CHECK (agreement_rating >= 1 AND agreement_rating <= 7),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(ratee_id, author)
+                UNIQUE(statement_id, author)
+            )
+        ''')
+        
+        # Create argument positions table - stores current dynamic positions
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS argument_positions (
+                argument_id INTEGER PRIMARY KEY REFERENCES arguments(argument_id) ON DELETE CASCADE,
+                column_index INTEGER NOT NULL,
+                position_in_column INTEGER NOT NULL,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
@@ -112,18 +111,26 @@ async def init_database():
         panel_count = await conn.fetchval('SELECT COUNT(*) FROM arguments')
         if panel_count == 0:
             sample_panels = [
-                ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
-                ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech', 0, 1),
-                ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy', 1, 0),
-                ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture', 2, 0)
+                ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate'),
+                ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech'),
+                ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy'),
+                ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture')
             ]
             
-            for argument, author, col_idx, pos in sample_panels:
+            for i, (argument, author) in enumerate(sample_panels):
                 argument_id = await conn.fetchval('''
-                    INSERT INTO arguments (argument, author, column_index, position_in_column)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO arguments (argument, author)
+                    VALUES ($1, $2)
                     RETURNING argument_id
-                ''', argument, author, col_idx, pos)
+                ''', argument, author)
+                
+                # Set initial positions (we'll use simple column assignment for now)
+                initial_column = i % 3  # Distribute across 3 columns initially
+                initial_position = i // 3
+                await conn.execute('''
+                    INSERT INTO argument_positions (argument_id, column_index, position_in_column)
+                    VALUES ($1, $2, $3)
+                ''', argument_id, initial_column, initial_position)
                 
                 # Add sample critiques
                 if argument_id == 1:  # First panel
@@ -155,16 +162,83 @@ async def init_database():
                         ($1, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
                     ''', argument_id)
 
-async def convert_to_frontend_format():
-    """Convert database data to the frontend format"""
+async def recalculate_positions():
+    """
+    Dynamic positioning algorithm - this is where you'll implement your logic
+    based on ratings, connections, or other criteria.
+    For now, this is a placeholder that maintains current positions.
+    """
     async with db_pool.acquire() as conn:
-        # Get all arguments with their critiques
+        # Get all arguments with their average ratings
+        arguments_with_ratings = await conn.fetch('''
+            SELECT 
+                a.argument_id,
+                a.argument,
+                a.author,
+                AVG(CASE WHEN r.statement_id = 'panel_' || a.argument_id THEN r.quality_rating END) as avg_quality,
+                AVG(CASE WHEN r.statement_id = 'panel_' || a.argument_id THEN r.agreement_rating END) as avg_agreement,
+                COUNT(CASE WHEN r.statement_id = 'panel_' || a.argument_id THEN 1 END) as rating_count
+            FROM arguments a
+            LEFT JOIN ratings r ON r.statement_id = 'panel_' || a.argument_id
+            GROUP BY a.argument_id, a.argument, a.author
+            ORDER BY a.argument_id
+        ''')
+        
+        # TODO: Implement your dynamic positioning algorithm here
+        # For now, we'll just distribute them evenly across columns
+        num_columns = 3
+        
+        for i, arg in enumerate(arguments_with_ratings):
+            new_column = i % num_columns
+            new_position = i // num_columns
+            
+            # Update or insert position
+            await conn.execute('''
+                INSERT INTO argument_positions (argument_id, column_index, position_in_column, last_updated)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                ON CONFLICT (argument_id)
+                DO UPDATE SET 
+                    column_index = EXCLUDED.column_index,
+                    position_in_column = EXCLUDED.position_in_column,
+                    last_updated = EXCLUDED.last_updated
+            ''', arg['argument_id'], new_column, new_position)
+        
+        return len(arguments_with_ratings)
+
+async def check_and_trigger_repositioning():
+    """
+    Check if repositioning should be triggered based on new ratings
+    This could be called after each rating is added, or on a schedule
+    """
+    async with db_pool.acquire() as conn:
+        # Get count of recent ratings (last hour as example)
+        recent_ratings_count = await conn.fetchval('''
+            SELECT COUNT(*) FROM ratings 
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        ''')
+        
+        # Simple trigger: if we have 5+ new ratings in the last hour, reposition
+        # You can customize this logic based on your needs
+        if recent_ratings_count >= 5:
+            await recalculate_positions()
+            return True
+    
+    return False
+
+async def convert_to_frontend_format():
+    """Convert database data to the frontend format using dynamic positions"""
+    async with db_pool.acquire() as conn:
+        # Get all arguments with their current positions and critiques
         panels_query = '''
-            SELECT p.argument_id, p.argument, p.author, p.column_index, p.position_in_column,
-                   c.critique_id, c.text as critique_text, c.start_ind, c.end_ind, c.author as critique_author
-            FROM arguments p
-            LEFT JOIN critiques c ON p.argument_id = c.argument_id
-            ORDER BY p.column_index, p.position_in_column, c.critique_id
+            SELECT 
+                a.argument_id, a.argument, a.author, 
+                ap.column_index, ap.position_in_column,
+                c.critique_id, c.text as critique_text, 
+                c.start_ind, c.end_ind, c.author as critique_author
+            FROM arguments a
+            LEFT JOIN argument_positions ap ON a.argument_id = ap.argument_id
+            LEFT JOIN critiques c ON a.argument_id = c.argument_id
+            ORDER BY ap.column_index, ap.position_in_column, c.critique_id
         '''
         
         rows = await conn.fetch(panels_query)
@@ -178,8 +252,8 @@ async def convert_to_frontend_format():
                     'argument_id': argument_id,
                     'argument': row['argument'],
                     'author': row['author'],
-                    'column_index': row['column_index'],
-                    'position_in_column': row['position_in_column'],
+                    'column_index': row['column_index'] or 0,  # Default to 0 if no position set
+                    'position_in_column': row['position_in_column'] or 0,
                     'critiques': []
                 }
             
@@ -198,7 +272,7 @@ async def convert_to_frontend_format():
         if not panels_dict:
             return []
             
-        max_col = max(panel['column_index'] for panel in panels_dict.values())
+        max_col = max(panel['column_index'] for panel in panels_dict.values()) if panels_dict else 0
         columns = [[] for _ in range(max_col + 1)]
         
         for panel in panels_dict.values():
@@ -229,9 +303,9 @@ class UserLogin(BaseModel):
     create_account: bool = False
 
 class NewArgument(BaseModel):
-    column_index: int
     argument: str
     author: str
+    # Removed column_index - positioning will be handled dynamically
 
 class NewCritique(BaseModel):
     argument_id: int
@@ -283,27 +357,21 @@ async def get_data():
 
 @app.post("/argument")
 async def add_argument(new_arg: NewArgument):
-    """Add a new argument to specified column"""
+    """Add a new argument - positioning will be handled dynamically"""
     # Validate author is provided
     if not new_arg.author or not new_arg.author.strip():
         raise HTTPException(status_code=400, detail="Author is required")
     
     async with db_pool.acquire() as conn:
-        # Find the next position in the specified column
-        max_position = await conn.fetchval('''
-            SELECT COALESCE(MAX(position_in_column), -1)
-            FROM arguments
-            WHERE column_index = $1
-        ''', new_arg.column_index)
-        
-        next_position = max_position + 1
-        
-        # Insert new panel
+        # Insert new argument
         argument_id = await conn.fetchval('''
-            INSERT INTO arguments (argument, author, column_index, position_in_column)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO arguments (argument, author)
+            VALUES ($1, $2)
             RETURNING argument_id
-        ''', new_arg.argument, new_arg.author.strip(), new_arg.column_index, next_position)
+        ''', new_arg.argument, new_arg.author.strip())
+        
+        # Trigger repositioning to place the new argument
+        await recalculate_positions()
     
     return {"message": "Argument added successfully", "argument_id": argument_id}
 
@@ -335,7 +403,7 @@ async def add_critique(new_crit: NewCritique):
 
 @app.post("/rating")
 async def add_rating(new_rating: NewRating):
-    """Add a rating for a statement"""
+    """Add a rating for a statement and potentially trigger repositioning"""
     # Validate rating values
     if not (1 <= new_rating.quality_rating <= 7) or not (1 <= new_rating.agreement_rating <= 7):
         raise HTTPException(status_code=400, detail="Ratings must be between 1 and 7")
@@ -378,11 +446,20 @@ async def add_rating(new_rating: NewRating):
             ON CONFLICT (statement_id, author)
             DO UPDATE SET 
                 quality_rating = EXCLUDED.quality_rating,
-                agreement_rating = EXCLUDED.agreement_rating
+                agreement_rating = EXCLUDED.agreement_rating,
+                created_at = CURRENT_TIMESTAMP
         ''', new_rating.statement_id, new_rating.author.strip(), 
              new_rating.quality_rating, new_rating.agreement_rating)
     
-    return {"message": "Rating added successfully"}
+    # Check if we should trigger repositioning
+    repositioned = await check_and_trigger_repositioning()
+    
+    response = {"message": "Rating added successfully"}
+    if repositioned:
+        response["repositioned"] = True
+        response["message"] += " - Arguments repositioned based on new data"
+    
+    return response
 
 @app.get("/ratings")
 async def get_ratings():
@@ -411,6 +488,12 @@ async def get_user_ratings(author: str):
             user_ratings[row['statement_id']] = (row['quality_rating'], row['agreement_rating'])
         
         return user_ratings
+
+@app.post("/reposition")
+async def manual_reposition():
+    """Manually trigger repositioning - useful for testing or admin control"""
+    count = await recalculate_positions()
+    return {"message": f"Repositioned {count} arguments successfully"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
