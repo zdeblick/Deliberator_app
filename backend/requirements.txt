@@ -1,3 +1,4 @@
 fastapi
 uvicorn
 numpy
+asyncpg==0.29.0
