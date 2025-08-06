@@ -214,68 +214,6 @@ async def init_database():
                         ($3, $2, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
                     ''', critique1_id, statement_id, critique2_id)
 
-async def recalculate_positions():
-    """
-    Dynamic positioning algorithm - this is where you'll implement your logic
-    based on ratings, connections, or other criteria.
-    For now, this is a placeholder that maintains current positions.
-    """
-    async with db_pool.acquire() as conn:
-        # Get all arguments with their average ratings
-        arguments_with_ratings = await conn.fetch('''
-            SELECT 
-                a.argument_id,
-                a.argument,
-                a.author,
-                AVG(CASE WHEN r.statement_id = 'panel_' || a.argument_id THEN r.quality_rating END) as avg_quality,
-                AVG(CASE WHEN r.statement_id = 'panel_' || a.argument_id THEN r.agreement_rating END) as avg_agreement,
-                COUNT(CASE WHEN r.statement_id = 'panel_' || a.argument_id THEN 1 END) as rating_count
-            FROM arguments a
-            LEFT JOIN ratings r ON r.statement_id = 'panel_' || a.argument_id
-            GROUP BY a.argument_id, a.argument, a.author
-            ORDER BY a.argument_id
-        ''')
-        
-        # TODO: Implement your dynamic positioning algorithm here
-        # For now, we'll just distribute them evenly across columns
-        num_columns = 3
-        
-        for i, arg in enumerate(arguments_with_ratings):
-            new_column = i % num_columns
-            new_position = i // num_columns
-            
-            # Update or insert position
-            await conn.execute('''
-                INSERT INTO argument_positions (argument_id, column_index, position_in_column, last_updated)
-                VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-                ON CONFLICT (argument_id)
-                DO UPDATE SET 
-                    column_index = EXCLUDED.column_index,
-                    position_in_column = EXCLUDED.position_in_column,
-                    last_updated = EXCLUDED.last_updated
-            ''', arg['argument_id'], new_column, new_position)
-        
-        return len(arguments_with_ratings)
-
-async def check_and_trigger_repositioning():
-    """
-    Check if repositioning should be triggered based on new ratings
-    This could be called after each rating is added, or on a schedule
-    """
-    async with db_pool.acquire() as conn:
-        # Get count of recent ratings (last hour as example)
-        recent_ratings_count = await conn.fetchval('''
-            SELECT COUNT(*) FROM ratings 
-            WHERE created_at > NOW() - INTERVAL '1 hour'
-        ''')
-        
-        # Simple trigger: if we have 5+ new ratings in the last hour, reposition
-        # You can customize this logic based on your needs
-        if recent_ratings_count >= 5:
-            await recalculate_positions()
-            return True
-    
-    return False
 
 async def convert_to_frontend_format():
     """Convert database data to the frontend format using dynamic positions"""
@@ -525,8 +463,8 @@ async def add_rating(new_rating: NewRating):
         ''', new_rating.statement_id, new_rating.author.strip(), 
              new_rating.quality_rating, new_rating.agreement_rating)
     
-    # Check if we should trigger repositioning
-    repositioned = await check_and_trigger_repositioning()
+    # Check if we should trigger repositioning!!!
+    repositioned = False
     
     response = {"message": "Rating added successfully"}
     if repositioned:
