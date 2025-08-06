@@ -3,109 +3,215 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Tuple, Dict, Optional
 import uvicorn
-import numpy as np
+import os
+import asyncio
+import asyncpg
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+# Database connection pool
+db_pool = None
 
-# Enable CORS for GitHub Pages
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    global db_pool
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL environment variable is required")
+    
+    # Create connection pool
+    db_pool = await asyncpg.create_pool(DATABASE_URL)
+    
+    # Initialize database
+    await init_database()
+    
+    yield
+    
+    # Shutdown
+    if db_pool:
+        await db_pool.close()
+
+app = FastAPI(lifespan=lifespan)
+
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your GitHub Pages URL
-    allow_credentials=False,  # Set to False when using allow_origins=["*"]
+    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# New data structures
-# panels: Dict[panel_id, panel_data]
-panels = {
-    0: {
-        'argument': 'Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.',
-        'author': 'Dr. Climate',
-        'critiques': [
-            {'text': 'The scientific consensus claim needs more specific evidence', 'start_ind': 85, 'end_ind': 120, 'author': 'Skeptic1'},
-            {'text': 'What about natural climate variations?', 'start_ind': 0, 'end_ind': 27, 'author': 'NaturalCycles'}
-        ]
-    },
-    1: {
-        'argument': 'Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.',
-        'author': 'GreenTech',
-        'critiques': [
-            {'text': 'Reliability issues during peak demand periods', 'start_ind': 77, 'end_ind': 85, 'author': 'GridExpert'},
-            {'text': 'Storage costs not included in analysis', 'start_ind': 50, 'end_ind': 77, 'author': 'EconomyWatch'}
-        ]
-    },
-    2: {
-        'argument': 'Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.',
-        'author': 'HealthPolicy',
-        'critiques': [
-            {'text': 'Wait times can be problematic', 'start_ind': 91, 'end_ind': 130, 'author': 'PatientAdvocate'},
-            {'text': 'Different countries have different contexts', 'start_ind': 132, 'end_ind': 162, 'author': 'ComparativeStudy'}
-        ]
-    },
-    3: {
-        'argument': 'Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.',
-        'author': 'EdTechFuture',
-        'critiques': [
-            {'text': 'Risk of reducing human interaction', 'start_ind': 74, 'end_ind': 101, 'author': 'HumanTouch'},
-            {'text': 'Privacy concerns with student data', 'start_ind': 102, 'end_ind': 141, 'author': 'PrivacyWatch'}
-        ]
-    }
-}
+async def init_database():
+    """Initialize database tables"""
+    async with db_pool.acquire() as conn:
+        # Create users table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username VARCHAR(255) PRIMARY KEY,
+                password VARCHAR(255)
+            )
+        ''')
+        
+        # Create panels table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS panels (
+                panel_id SERIAL PRIMARY KEY,
+                argument TEXT NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                column_index INTEGER NOT NULL,
+                position_in_column INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create critiques table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS critiques (
+                critique_id SERIAL PRIMARY KEY,
+                panel_id INTEGER REFERENCES panels(panel_id) ON DELETE CASCADE,
+                text TEXT NOT NULL,
+                start_ind INTEGER NOT NULL,
+                end_ind INTEGER NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create ratings table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS ratings (
+                rating_id SERIAL PRIMARY KEY,
+                statement_id VARCHAR(255) NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                quality_rating INTEGER CHECK (quality_rating >= 1 AND quality_rating <= 7),
+                agreement_rating INTEGER CHECK (agreement_rating >= 1 AND agreement_rating <= 7),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(statement_id, author)
+            )
+        ''')
+        
+        # Insert default user if not exists
+        await conn.execute('''
+            INSERT INTO users (username, password) 
+            VALUES ('system', NULL) 
+            ON CONFLICT (username) DO NOTHING
+        ''')
+        
+        # Insert sample data if panels table is empty
+        panel_count = await conn.fetchval('SELECT COUNT(*) FROM panels')
+        if panel_count == 0:
+            sample_panels = [
+                ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
+                ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech', 0, 1),
+                ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy', 1, 0),
+                ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture', 2, 0)
+            ]
+            
+            for argument, author, col_idx, pos in sample_panels:
+                panel_id = await conn.fetchval('''
+                    INSERT INTO panels (argument, author, column_index, position_in_column)
+                    VALUES ($1, $2, $3, $4)
+                    RETURNING panel_id
+                ''', argument, author, col_idx, pos)
+                
+                # Add sample critiques
+                if panel_id == 1:  # First panel
+                    await conn.execute('''
+                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        VALUES 
+                        ($1, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
+                        ($1, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
+                    ''', panel_id)
+                elif panel_id == 2:  # Second panel
+                    await conn.execute('''
+                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        VALUES 
+                        ($1, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
+                        ($1, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
+                    ''', panel_id)
+                elif panel_id == 3:  # Third panel
+                    await conn.execute('''
+                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        VALUES 
+                        ($1, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
+                        ($1, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
+                    ''', panel_id)
+                elif panel_id == 4:  # Fourth panel
+                    await conn.execute('''
+                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        VALUES 
+                        ($1, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
+                        ($1, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
+                    ''', panel_id)
 
-# layout: Dict[panel_id, (column_index, position_in_column)]
-layout = {
-    0: (0, 0),  # Column 1, position 1
-    1: (0, 1),  # Column 1, position 2
-    2: (1, 0),  # Column 2, position 1
-    3: (2, 0)   # Column 3, position 1
-}
-
-# Users storage
-users = {'system': {'password': None}}  # system user for default data
-
-# Ratings storage: user -> statement_id -> (quality_rating, agreement_rating)
-# statement_id format: "panel_X" for arguments, "panel_X_critique_Y" for critiques
-ratings = {}
-
-# Counter for new panel IDs
-next_panel_id = 4
-
-def convert_to_frontend_format():
-    """Convert panels and layout to the frontend format"""
-    # Find max column index
-    max_col = max(col for col, pos in layout.values()) if layout else 0
-    
-    # Initialize columns
-    columns = [[] for _ in range(max_col + 1)]
-    
-    # Group panels by column and sort by position
-    for panel_id, (col_idx, position) in layout.items():
-        if panel_id in panels:
-            panel_data = panels[panel_id].copy()
-            # Convert critiques to the old format for frontend compatibility but keep author
-            old_format_critiques = []
-            for critique_ind, critique in enumerate(panel_data['critiques']):
-                old_format_critiques.append([
-                    critique['text'], 
-                    critique['start_ind'], 
-                    critique['end_ind'],
-                    critique['author'],  # Include author in the format
-                    critique_ind
+async def convert_to_frontend_format():
+    """Convert database data to the frontend format"""
+    async with db_pool.acquire() as conn:
+        # Get all panels with their critiques
+        panels_query = '''
+            SELECT p.panel_id, p.argument, p.author, p.column_index, p.position_in_column,
+                   c.critique_id, c.text as critique_text, c.start_ind, c.end_ind, c.author as critique_author
+            FROM panels p
+            LEFT JOIN critiques c ON p.panel_id = c.panel_id
+            ORDER BY p.column_index, p.position_in_column, c.critique_id
+        '''
+        
+        rows = await conn.fetch(panels_query)
+        
+        # Group by panel
+        panels_dict = {}
+        for row in rows:
+            panel_id = row['panel_id']
+            if panel_id not in panels_dict:
+                panels_dict[panel_id] = {
+                    'panel_id': panel_id,
+                    'argument': row['argument'],
+                    'author': row['author'],
+                    'column_index': row['column_index'],
+                    'position_in_column': row['position_in_column'],
+                    'critiques': []
+                }
+            
+            # Add critique if it exists
+            if row['critique_id']:
+                critique_index = len(panels_dict[panel_id]['critiques'])
+                panels_dict[panel_id]['critiques'].append([
+                    row['critique_text'],
+                    row['start_ind'],
+                    row['end_ind'],
+                    row['critique_author'],
+                    critique_index
                 ])
-            panel_data['critiques'] = old_format_critiques
+        
+        # Group by columns
+        if not panels_dict:
+            return []
             
-            # Add panel_id for reference
-            panel_data['panel_id'] = panel_id
+        max_col = max(panel['column_index'] for panel in panels_dict.values())
+        columns = [[] for _ in range(max_col + 1)]
+        
+        for panel in panels_dict.values():
+            columns[panel['column_index']].append({
+                'panel_id': panel['panel_id'],
+                'argument': panel['argument'],
+                'author': panel['author'],
+                'critiques': panel['critiques']
+            })
+        
+        # Sort each column by position
+        for col_idx, column in enumerate(columns):
+            # Get positions for sorting
+            panel_positions = []
+            for panel in column:
+                panel_id = panel['panel_id']
+                position = next(p['position_in_column'] for p in panels_dict.values() if p['panel_id'] == panel_id)
+                panel_positions.append((position, panel))
             
-            columns[col_idx].append((position, panel_data))
-    
-    # Sort each column by position and remove position info
-    for col in columns:
-        col.sort(key=lambda x: x[0])
-        col[:] = [panel for pos, panel in col]
-    
-    return columns
+            panel_positions.sort(key=lambda x: x[0])
+            columns[col_idx] = [panel for position, panel in panel_positions]
+        
+        return columns
 
 class UserLogin(BaseModel):
     username: str
@@ -138,74 +244,82 @@ async def login_user(user_data: UserLogin):
     if not username:
         raise HTTPException(status_code=400, detail="Username cannot be empty")
     
-    if user_data.create_account:
-        if username in users:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        users[username] = {'password': user_data.password}
-        return {"message": "Account created successfully", "username": username}
-    else:
-        if username not in users:
-            raise HTTPException(status_code=400, detail="Username does not exist")
-        if users[username]['password'] != user_data.password:
-            raise HTTPException(status_code=400, detail="Incorrect password")
-        return {"message": "Login successful", "username": username}
+    async with db_pool.acquire() as conn:
+        if user_data.create_account:
+            # Check if user already exists
+            existing = await conn.fetchrow('SELECT username FROM users WHERE username = $1', username)
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already exists")
+            
+            # Create new user
+            await conn.execute(
+                'INSERT INTO users (username, password) VALUES ($1, $2)',
+                username, user_data.password
+            )
+            return {"message": "Account created successfully", "username": username}
+        else:
+            # Check if user exists and password matches
+            user = await conn.fetchrow('SELECT password FROM users WHERE username = $1', username)
+            if not user:
+                raise HTTPException(status_code=400, detail="Username does not exist")
+            if user['password'] != user_data.password:
+                raise HTTPException(status_code=400, detail="Incorrect password")
+            return {"message": "Login successful", "username": username}
 
 @app.get("/data")
 async def get_data():
     """Return the data in frontend format"""
-    return convert_to_frontend_format()
+    return await convert_to_frontend_format()
 
 @app.post("/argument")
 async def add_argument(new_arg: NewArgument):
     """Add a new argument to specified column"""
-    global next_panel_id
-    
     # Validate author is provided
     if not new_arg.author or not new_arg.author.strip():
         raise HTTPException(status_code=400, detail="Author is required")
     
-    # Create new panel
-    panel_id = next_panel_id
-    next_panel_id += 1
-    
-    panels[panel_id] = {
-        'argument': new_arg.argument,
-        'author': new_arg.author.strip(),
-        'critiques': []
-    }
-    
-    # Find the next position in the specified column
-    positions_in_column = [pos for pid, (col, pos) in layout.items() if col == new_arg.column_index]
-    next_position = max(positions_in_column) + 1 if positions_in_column else 0
-    
-    layout[panel_id] = (new_arg.column_index, next_position)
+    async with db_pool.acquire() as conn:
+        # Find the next position in the specified column
+        max_position = await conn.fetchval('''
+            SELECT COALESCE(MAX(position_in_column), -1)
+            FROM panels
+            WHERE column_index = $1
+        ''', new_arg.column_index)
+        
+        next_position = max_position + 1
+        
+        # Insert new panel
+        panel_id = await conn.fetchval('''
+            INSERT INTO panels (argument, author, column_index, position_in_column)
+            VALUES ($1, $2, $3, $4)
+            RETURNING panel_id
+        ''', new_arg.argument, new_arg.author.strip(), new_arg.column_index, next_position)
     
     return {"message": "Argument added successfully", "panel_id": panel_id}
 
 @app.post("/critique")
 async def add_critique(new_crit: NewCritique):
     """Add a new critique to specified panel"""
-    if new_crit.panel_id not in panels:
-        raise HTTPException(status_code=400, detail="Invalid panel ID")
-    
     # Validate author is provided
     if not new_crit.author or not new_crit.author.strip():
         raise HTTPException(status_code=400, detail="Author is required")
     
-    panel = panels[new_crit.panel_id]
-    
-    # Validate indices
-    if new_crit.start_ind < 0 or new_crit.end_ind > len(panel['argument']) or new_crit.start_ind >= new_crit.end_ind:
-        raise HTTPException(status_code=400, detail="Invalid text indices")
-    
-    critique = {
-        'text': new_crit.critique_text,
-        'start_ind': new_crit.start_ind,
-        'end_ind': new_crit.end_ind,
-        'author': new_crit.author.strip()
-    }
-    
-    panel['critiques'].append(critique)
+    async with db_pool.acquire() as conn:
+        # Validate panel exists and get argument text
+        panel = await conn.fetchrow('SELECT argument FROM panels WHERE panel_id = $1', new_crit.panel_id)
+        if not panel:
+            raise HTTPException(status_code=400, detail="Invalid panel ID")
+        
+        # Validate indices
+        argument = panel['argument']
+        if new_crit.start_ind < 0 or new_crit.end_ind > len(argument) or new_crit.start_ind >= new_crit.end_ind:
+            raise HTTPException(status_code=400, detail="Invalid text indices")
+        
+        # Insert critique
+        await conn.execute('''
+            INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+            VALUES ($1, $2, $3, $4, $5)
+        ''', new_crit.panel_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
     
     return {"message": "Critique added successfully"}
 
@@ -225,39 +339,68 @@ async def add_rating(new_rating: NewRating):
         parts = new_rating.statement_id.split("_")
         try:
             panel_id = int(parts[1])
-            if panel_id not in panels:
-                raise HTTPException(status_code=400, detail="Panel does not exist")
             
-            if len(parts) > 2 and parts[2] == "critique":
-                critique_index = int(parts[3])
-                if critique_index >= len(panels[panel_id]['critiques']):
-                    raise HTTPException(status_code=400, detail="Critique does not exist")
+            async with db_pool.acquire() as conn:
+                # Check if panel exists
+                panel_exists = await conn.fetchval('SELECT 1 FROM panels WHERE panel_id = $1', panel_id)
+                if not panel_exists:
+                    raise HTTPException(status_code=400, detail="Panel does not exist")
+                
+                # If it's a critique rating, validate critique exists
+                if len(parts) > 2 and parts[2] == "critique":
+                    critique_index = int(parts[3])
+                    critique_count = await conn.fetchval('''
+                        SELECT COUNT(*) FROM critiques WHERE panel_id = $1
+                    ''', panel_id)
+                    if critique_index >= critique_count:
+                        raise HTTPException(status_code=400, detail="Critique does not exist")
+                        
         except (ValueError, IndexError):
             raise HTTPException(status_code=400, detail="Invalid statement ID format")
     else:
         raise HTTPException(status_code=400, detail="Invalid statement ID format")
     
-    # Store rating with author
-    author = new_rating.author.strip()
-    if author not in ratings:
-        ratings[author] = {}
-    
-    ratings[author][new_rating.statement_id] = (
-        new_rating.quality_rating,
-        new_rating.agreement_rating
-    )
+    # Store rating (upsert)
+    async with db_pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO ratings (statement_id, author, quality_rating, agreement_rating)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (statement_id, author)
+            DO UPDATE SET 
+                quality_rating = EXCLUDED.quality_rating,
+                agreement_rating = EXCLUDED.agreement_rating
+        ''', new_rating.statement_id, new_rating.author.strip(), 
+             new_rating.quality_rating, new_rating.agreement_rating)
     
     return {"message": "Rating added successfully"}
 
 @app.get("/ratings")
 async def get_ratings():
     """Get all ratings data"""
-    return ratings
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch('SELECT * FROM ratings')
+        
+        # Convert to the expected format: author -> statement_id -> (quality, agreement)
+        ratings = {}
+        for row in rows:
+            author = row['author']
+            if author not in ratings:
+                ratings[author] = {}
+            ratings[author][row['statement_id']] = (row['quality_rating'], row['agreement_rating'])
+        
+        return ratings
 
 @app.get("/ratings/{author}")
 async def get_user_ratings(author: str):
     """Get ratings for a specific author"""
-    return ratings.get(author, {})
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch('SELECT * FROM ratings WHERE author = $1', author)
+        
+        user_ratings = {}
+        for row in rows:
+            user_ratings[row['statement_id']] = (row['quality_rating'], row['agreement_rating'])
+        
+        return user_ratings
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
