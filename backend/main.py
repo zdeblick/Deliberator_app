@@ -222,13 +222,12 @@ async def convert_to_frontend_format():
         panels_query = '''
             SELECT 
                 a.argument_id, a.argument, a.author, 
-                ap.column_index, ap.position_in_column,
+                a.column_index, a.position_in_column,
                 c.critique_id, c.text as critique_text, 
                 c.start_ind, c.end_ind, c.author as critique_author
             FROM arguments a
-            LEFT JOIN argument_positions ap ON a.argument_id = ap.argument_id
             LEFT JOIN critiques c ON a.argument_id = c.argument_id
-            ORDER BY ap.column_index, ap.position_in_column, c.critique_id
+            ORDER BY a.column_index, a.position_in_column, c.critique_id
         '''
         
         rows = await conn.fetch(panels_query)
