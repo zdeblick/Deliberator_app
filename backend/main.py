@@ -52,11 +52,19 @@ async def init_database():
                 password VARCHAR(255)
             )
         ''')
-        
-        # Create panels table
+
+        # 
         await conn.execute('''
-            CREATE TABLE IF NOT EXISTS panels (
-                panel_id SERIAL PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS statements (
+                id SERIAL PRIMARY KEY,
+                statement_type TEXT NOT NULL
+            )
+        ''')
+        
+        # Create arguments table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS arguments (
+                argument_id INTEGER PRIMARY KEY REFERENCES statements(id),
                 argument TEXT NOT NULL,
                 author VARCHAR(255) NOT NULL,
                 column_index INTEGER NOT NULL,
@@ -68,13 +76,15 @@ async def init_database():
         # Create critiques table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS critiques (
-                critique_id SERIAL PRIMARY KEY,
-                panel_id INTEGER REFERENCES panels(panel_id) ON DELETE CASCADE,
+                critique_id INTEGER PRIMARY KEY REFERENCES statements(id),
+                argument_id INTEGER REFERENCES arguments(argument_id) ON DELETE CASCADE,
                 text TEXT NOT NULL,
                 start_ind INTEGER NOT NULL,
                 end_ind INTEGER NOT NULL,
                 author VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                category_index INTEGER NOT NULL,
+                quality INTEGER NOT NULL
             )
         ''')
         
@@ -82,12 +92,12 @@ async def init_database():
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS ratings (
                 rating_id SERIAL PRIMARY KEY,
-                statement_id VARCHAR(255) NOT NULL,
+                ratee_id INTEGER REFERENCES statements(id) ON DELETE CASCADE,
                 author VARCHAR(255) NOT NULL,
                 quality_rating INTEGER CHECK (quality_rating >= 1 AND quality_rating <= 7),
                 agreement_rating INTEGER CHECK (agreement_rating >= 1 AND agreement_rating <= 7),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(statement_id, author)
+                UNIQUE(ratee_id, author)
             )
         ''')
         
@@ -98,8 +108,8 @@ async def init_database():
             ON CONFLICT (username) DO NOTHING
         ''')
         
-        # Insert sample data if panels table is empty
-        panel_count = await conn.fetchval('SELECT COUNT(*) FROM panels')
+        # Insert sample data if arguments table is empty
+        panel_count = await conn.fetchval('SELECT COUNT(*) FROM arguments')
         if panel_count == 0:
             sample_panels = [
                 ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
@@ -109,51 +119,51 @@ async def init_database():
             ]
             
             for argument, author, col_idx, pos in sample_panels:
-                panel_id = await conn.fetchval('''
-                    INSERT INTO panels (argument, author, column_index, position_in_column)
+                argument_id = await conn.fetchval('''
+                    INSERT INTO arguments (argument, author, column_index, position_in_column)
                     VALUES ($1, $2, $3, $4)
-                    RETURNING panel_id
+                    RETURNING argument_id
                 ''', argument, author, col_idx, pos)
                 
                 # Add sample critiques
-                if panel_id == 1:  # First panel
+                if argument_id == 1:  # First panel
                     await conn.execute('''
-                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
                         VALUES 
                         ($1, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
                         ($1, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
-                    ''', panel_id)
-                elif panel_id == 2:  # Second panel
+                    ''', argument_id)
+                elif argument_id == 2:  # Second panel
                     await conn.execute('''
-                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
                         VALUES 
                         ($1, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
                         ($1, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
-                    ''', panel_id)
-                elif panel_id == 3:  # Third panel
+                    ''', argument_id)
+                elif argument_id == 3:  # Third panel
                     await conn.execute('''
-                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
                         VALUES 
                         ($1, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
                         ($1, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
-                    ''', panel_id)
-                elif panel_id == 4:  # Fourth panel
+                    ''', argument_id)
+                elif argument_id == 4:  # Fourth panel
                     await conn.execute('''
-                        INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
                         VALUES 
                         ($1, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
                         ($1, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
-                    ''', panel_id)
+                    ''', argument_id)
 
 async def convert_to_frontend_format():
     """Convert database data to the frontend format"""
     async with db_pool.acquire() as conn:
-        # Get all panels with their critiques
+        # Get all arguments with their critiques
         panels_query = '''
-            SELECT p.panel_id, p.argument, p.author, p.column_index, p.position_in_column,
+            SELECT p.argument_id, p.argument, p.author, p.column_index, p.position_in_column,
                    c.critique_id, c.text as critique_text, c.start_ind, c.end_ind, c.author as critique_author
-            FROM panels p
-            LEFT JOIN critiques c ON p.panel_id = c.panel_id
+            FROM arguments p
+            LEFT JOIN critiques c ON p.argument_id = c.argument_id
             ORDER BY p.column_index, p.position_in_column, c.critique_id
         '''
         
@@ -162,10 +172,10 @@ async def convert_to_frontend_format():
         # Group by panel
         panels_dict = {}
         for row in rows:
-            panel_id = row['panel_id']
-            if panel_id not in panels_dict:
-                panels_dict[panel_id] = {
-                    'panel_id': panel_id,
+            argument_id = row['argument_id']
+            if argument_id not in panels_dict:
+                panels_dict[argument_id] = {
+                    'argument_id': argument_id,
                     'argument': row['argument'],
                     'author': row['author'],
                     'column_index': row['column_index'],
@@ -175,8 +185,8 @@ async def convert_to_frontend_format():
             
             # Add critique if it exists
             if row['critique_id']:
-                critique_index = len(panels_dict[panel_id]['critiques'])
-                panels_dict[panel_id]['critiques'].append([
+                critique_index = len(panels_dict[argument_id]['critiques'])
+                panels_dict[argument_id]['critiques'].append([
                     row['critique_text'],
                     row['start_ind'],
                     row['end_ind'],
@@ -193,7 +203,7 @@ async def convert_to_frontend_format():
         
         for panel in panels_dict.values():
             columns[panel['column_index']].append({
-                'panel_id': panel['panel_id'],
+                'argument_id': panel['argument_id'],
                 'argument': panel['argument'],
                 'author': panel['author'],
                 'critiques': panel['critiques']
@@ -204,8 +214,8 @@ async def convert_to_frontend_format():
             # Get positions for sorting
             panel_positions = []
             for panel in column:
-                panel_id = panel['panel_id']
-                position = next(p['position_in_column'] for p in panels_dict.values() if p['panel_id'] == panel_id)
+                argument_id = panel['argument_id']
+                position = next(p['position_in_column'] for p in panels_dict.values() if p['argument_id'] == argument_id)
                 panel_positions.append((position, panel))
             
             panel_positions.sort(key=lambda x: x[0])
@@ -224,7 +234,7 @@ class NewArgument(BaseModel):
     author: str
 
 class NewCritique(BaseModel):
-    panel_id: int
+    argument_id: int
     critique_text: str
     start_ind: int
     end_ind: int
@@ -282,20 +292,20 @@ async def add_argument(new_arg: NewArgument):
         # Find the next position in the specified column
         max_position = await conn.fetchval('''
             SELECT COALESCE(MAX(position_in_column), -1)
-            FROM panels
+            FROM arguments
             WHERE column_index = $1
         ''', new_arg.column_index)
         
         next_position = max_position + 1
         
         # Insert new panel
-        panel_id = await conn.fetchval('''
-            INSERT INTO panels (argument, author, column_index, position_in_column)
+        argument_id = await conn.fetchval('''
+            INSERT INTO arguments (argument, author, column_index, position_in_column)
             VALUES ($1, $2, $3, $4)
-            RETURNING panel_id
+            RETURNING argument_id
         ''', new_arg.argument, new_arg.author.strip(), new_arg.column_index, next_position)
     
-    return {"message": "Argument added successfully", "panel_id": panel_id}
+    return {"message": "Argument added successfully", "argument_id": argument_id}
 
 @app.post("/critique")
 async def add_critique(new_crit: NewCritique):
@@ -306,7 +316,7 @@ async def add_critique(new_crit: NewCritique):
     
     async with db_pool.acquire() as conn:
         # Validate panel exists and get argument text
-        panel = await conn.fetchrow('SELECT argument FROM panels WHERE panel_id = $1', new_crit.panel_id)
+        panel = await conn.fetchrow('SELECT argument FROM arguments WHERE argument_id = $1', new_crit.argument_id)
         if not panel:
             raise HTTPException(status_code=400, detail="Invalid panel ID")
         
@@ -317,9 +327,9 @@ async def add_critique(new_crit: NewCritique):
         
         # Insert critique
         await conn.execute('''
-            INSERT INTO critiques (panel_id, text, start_ind, end_ind, author)
+            INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
             VALUES ($1, $2, $3, $4, $5)
-        ''', new_crit.panel_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
+        ''', new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
     
     return {"message": "Critique added successfully"}
 
@@ -338,11 +348,11 @@ async def add_rating(new_rating: NewRating):
     if new_rating.statement_id.startswith("panel_"):
         parts = new_rating.statement_id.split("_")
         try:
-            panel_id = int(parts[1])
+            argument_id = int(parts[1])
             
             async with db_pool.acquire() as conn:
                 # Check if panel exists
-                panel_exists = await conn.fetchval('SELECT 1 FROM panels WHERE panel_id = $1', panel_id)
+                panel_exists = await conn.fetchval('SELECT 1 FROM arguments WHERE argument_id = $1', argument_id)
                 if not panel_exists:
                     raise HTTPException(status_code=400, detail="Panel does not exist")
                 
@@ -350,8 +360,8 @@ async def add_rating(new_rating: NewRating):
                 if len(parts) > 2 and parts[2] == "critique":
                     critique_index = int(parts[3])
                     critique_count = await conn.fetchval('''
-                        SELECT COUNT(*) FROM critiques WHERE panel_id = $1
-                    ''', panel_id)
+                        SELECT COUNT(*) FROM critiques WHERE argument_id = $1
+                    ''', argument_id)
                     if critique_index >= critique_count:
                         raise HTTPException(status_code=400, detail="Critique does not exist")
                         
