@@ -416,7 +416,7 @@ async def add_argument(new_arg: NewArgument):
     
     async with db_pool.acquire() as conn:
         # The last column will be for unsorted args
-       target_column = num_columns-1
+        target_column = num_columns-1
         
         # Find the next position in the target column
         max_position = await conn.fetchval('''
