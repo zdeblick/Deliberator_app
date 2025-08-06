@@ -2,4 +2,4 @@ fastapi
 uvicorn
 numpy
 --only-binary=:all:
-asyncpg==0.29.0
+asyncpg==0.30.0
