@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 # Database connection pool
 db_pool = None
+num_columns = 3
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,6 +46,9 @@ app.add_middleware(
 async def init_database():
     """Initialize database tables"""
     async with db_pool.acquire() as conn:
+        # Create metadata table
+        
+        
         # Create users table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -52,14 +56,23 @@ async def init_database():
                 password VARCHAR(255)
             )
         ''')
+
+        # Create statements table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS statements (
+                id SERIAL PRIMARY KEY,
+                statement_type TEXT NOT NULL
+            )
+        ''')
         
-        # Create arguments table - removed column_index and position_in_column
-        # These will be calculated dynamically by the positioning algorithm
+        # Create arguments table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS arguments (
-                argument_id SERIAL PRIMARY KEY,
+                argument_id INTEGER PRIMARY KEY REFERENCES statements(id),
                 argument TEXT NOT NULL,
                 author VARCHAR(255) NOT NULL,
+                column_index INTEGER NOT NULL,
+                position_in_column INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -67,36 +80,28 @@ async def init_database():
         # Create critiques table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS critiques (
-                critique_id SERIAL PRIMARY KEY,
+                critique_id INTEGER PRIMARY KEY REFERENCES statements(id),
                 argument_id INTEGER REFERENCES arguments(argument_id) ON DELETE CASCADE,
                 text TEXT NOT NULL,
                 start_ind INTEGER NOT NULL,
                 end_ind INTEGER NOT NULL,
                 author VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                category_index INTEGER NOT NULL DEFAULT 0,
+                quality INTEGER NOT NULL DEFAULT 5
             )
         ''')
         
-        # Create ratings table using string-based statement IDs
+        # Create ratings table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS ratings (
                 rating_id SERIAL PRIMARY KEY,
-                statement_id TEXT NOT NULL,
+                ratee_id INTEGER REFERENCES statements(id) ON DELETE CASCADE,
                 author VARCHAR(255) NOT NULL,
                 quality_rating INTEGER CHECK (quality_rating >= 1 AND quality_rating <= 7),
                 agreement_rating INTEGER CHECK (agreement_rating >= 1 AND agreement_rating <= 7),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(statement_id, author)
-            )
-        ''')
-        
-        # Create argument positions table - stores current dynamic positions
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS argument_positions (
-                argument_id INTEGER PRIMARY KEY REFERENCES arguments(argument_id) ON DELETE CASCADE,
-                column_index INTEGER NOT NULL,
-                position_in_column INTEGER NOT NULL,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                UNIQUE(ratee_id, author)
             )
         ''')
         
@@ -111,56 +116,103 @@ async def init_database():
         panel_count = await conn.fetchval('SELECT COUNT(*) FROM arguments')
         if panel_count == 0:
             sample_panels = [
-                ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate'),
-                ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech'),
-                ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy'),
-                ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture')
+                ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
+                ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech', 0, 1),
+                ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy', 1, 0),
+                ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture', 2, 0)
             ]
             
-            for i, (argument, author) in enumerate(sample_panels):
-                argument_id = await conn.fetchval('''
-                    INSERT INTO arguments (argument, author)
-                    VALUES ($1, $2)
-                    RETURNING argument_id
-                ''', argument, author)
+            for argument, author, col_idx, pos in sample_panels:
+                # First create a statement entry
+                statement_id = await conn.fetchval('''
+                    INSERT INTO statements (statement_type)
+                    VALUES ('argument')
+                    RETURNING id
+                ''')
                 
-                # Set initial positions (we'll use simple column assignment for now)
-                initial_column = i % 3  # Distribute across 3 columns initially
-                initial_position = i // 3
+                # Then create the argument with the statement_id as argument_id
                 await conn.execute('''
-                    INSERT INTO argument_positions (argument_id, column_index, position_in_column)
-                    VALUES ($1, $2, $3)
-                ''', argument_id, initial_column, initial_position)
+                    INSERT INTO arguments (argument_id, argument, author, column_index, position_in_column)
+                    VALUES ($1, $2, $3, $4, $5)
+                ''', statement_id, argument, author, col_idx, pos)
                 
                 # Add sample critiques
-                if argument_id == 1:  # First panel
+                if statement_id == 1:  # First panel
+                    # Create statement entries for critiques
+                    critique1_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    critique2_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    
                     await conn.execute('''
-                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
                         VALUES 
-                        ($1, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
-                        ($1, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
-                    ''', argument_id)
-                elif argument_id == 2:  # Second panel
+                        ($1, $2, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
+                        ($3, $2, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
+                    ''', critique1_id, statement_id, critique2_id)
+                    
+                elif statement_id == 2:  # Second panel
+                    critique1_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    critique2_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    
                     await conn.execute('''
-                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
                         VALUES 
-                        ($1, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
-                        ($1, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
-                    ''', argument_id)
-                elif argument_id == 3:  # Third panel
+                        ($1, $2, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
+                        ($3, $2, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
+                    ''', critique1_id, statement_id, critique2_id)
+                    
+                elif statement_id == 3:  # Third panel
+                    critique1_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    critique2_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    
                     await conn.execute('''
-                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
                         VALUES 
-                        ($1, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
-                        ($1, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
-                    ''', argument_id)
-                elif argument_id == 4:  # Fourth panel
+                        ($1, $2, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
+                        ($3, $2, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
+                    ''', critique1_id, statement_id, critique2_id)
+                    
+                elif statement_id == 4:  # Fourth panel
+                    critique1_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    critique2_id = await conn.fetchval('''
+                        INSERT INTO statements (statement_type)
+                        VALUES ('critique')
+                        RETURNING id
+                    ''')
+                    
                     await conn.execute('''
-                        INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
+                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
                         VALUES 
-                        ($1, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
-                        ($1, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
-                    ''', argument_id)
+                        ($1, $2, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
+                        ($3, $2, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
+                    ''', critique1_id, statement_id, critique2_id)
 
 async def recalculate_positions():
     """
@@ -357,23 +409,38 @@ async def get_data():
 
 @app.post("/argument")
 async def add_argument(new_arg: NewArgument):
-    """Add a new argument - positioning will be handled dynamically"""
+    """Add a new argument - automatically determines best column"""
     # Validate author is provided
     if not new_arg.author or not new_arg.author.strip():
         raise HTTPException(status_code=400, detail="Author is required")
     
     async with db_pool.acquire() as conn:
-        # Insert new argument
-        argument_id = await conn.fetchval('''
-            INSERT INTO arguments (argument, author)
-            VALUES ($1, $2)
-            RETURNING argument_id
-        ''', new_arg.argument, new_arg.author.strip())
+        # The last column will be for unsorted args
+       target_column = num_columns-1
         
-        # Trigger repositioning to place the new argument
-        await recalculate_positions()
+        # Find the next position in the target column
+        max_position = await conn.fetchval('''
+            SELECT COALESCE(MAX(position_in_column), -1)
+            FROM arguments
+            WHERE column_index = $1
+        ''', target_column)
+        
+        next_position = max_position + 1
+        
+        # First create a statement entry
+        statement_id = await conn.fetchval('''
+            INSERT INTO statements (statement_type)
+            VALUES ('argument')
+            RETURNING id
+        ''')
+        
+        # Insert new argument with the statement_id
+        await conn.execute('''
+            INSERT INTO arguments (argument_id, argument, author, column_index, position_in_column)
+            VALUES ($1, $2, $3, $4, $5)
+        ''', statement_id, new_arg.argument, new_arg.author.strip(), target_column, next_position)
     
-    return {"message": "Argument added successfully", "argument_id": argument_id}
+    return {"message": "Argument added successfully", "argument_id": statement_id, "repositioned": False}
 
 @app.post("/critique")
 async def add_critique(new_crit: NewCritique):
@@ -393,11 +460,18 @@ async def add_critique(new_crit: NewCritique):
         if new_crit.start_ind < 0 or new_crit.end_ind > len(argument) or new_crit.start_ind >= new_crit.end_ind:
             raise HTTPException(status_code=400, detail="Invalid text indices")
         
-        # Insert critique
+        # First create a statement entry for the critique
+        statement_id = await conn.fetchval('''
+            INSERT INTO statements (statement_type)
+            VALUES ('critique')
+            RETURNING id
+        ''')
+        
+        # Insert critique with the statement_id
         await conn.execute('''
-            INSERT INTO critiques (argument_id, text, start_ind, end_ind, author)
-            VALUES ($1, $2, $3, $4, $5)
-        ''', new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
+            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
     
     return {"message": "Critique added successfully"}
 
@@ -489,11 +563,6 @@ async def get_user_ratings(author: str):
         
         return user_ratings
 
-@app.post("/reposition")
-async def manual_reposition():
-    """Manually trigger repositioning - useful for testing or admin control"""
-    count = await recalculate_positions()
-    return {"message": f"Repositioned {count} arguments successfully"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
