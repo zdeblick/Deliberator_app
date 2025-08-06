@@ -46,8 +46,8 @@ app.add_middleware(
 async def init_database():
     """Initialize database tables"""
     async with db_pool.acquire() as conn:
-        # Create metadata table
-        
+        # init schema in case it got deleted
+        await conn.execute('CREATE SCHEMA IF NOT EXISTS public')
         
         # Create users table
         await conn.execute('''
