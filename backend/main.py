@@ -88,7 +88,7 @@ async def init_database():
                 author VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 category_index INTEGER NOT NULL DEFAULT 0,
-                quality INTEGER NOT NULL DEFAULT 5
+                in_category_pos INTEGER NOT NULL DEFAULT 0
             )
         ''')
         
@@ -248,13 +248,13 @@ async def convert_to_frontend_format():
             
             # Add critique if it exists
             if row['critique_id']:
-                critique_index = len(panels_dict[argument_id]['critiques'])
                 panels_dict[argument_id]['critiques'].append([
                     row['critique_text'],
                     row['start_ind'],
                     row['end_ind'],
                     row['critique_author'],
-                    critique_index
+                    row['in_category_pos'],
+                    row['critique_id']
                 ])
         
         # Group by columns
@@ -422,32 +422,6 @@ async def add_rating(new_rating: NewRating):
     # Validate author is provided
     if not new_rating.author or not new_rating.author.strip():
         raise HTTPException(status_code=400, detail="Author is required")
-    
-    # Validate statement exists
-    if new_rating.statement_id.startswith("panel_"):
-        parts = new_rating.statement_id.split("_")
-        try:
-            argument_id = int(parts[1])
-            
-            async with db_pool.acquire() as conn:
-                # Check if panel exists
-                panel_exists = await conn.fetchval('SELECT 1 FROM arguments WHERE argument_id = $1', argument_id)
-                if not panel_exists:
-                    raise HTTPException(status_code=400, detail="Panel does not exist")
-                
-                # If it's a critique rating, validate critique exists
-                if len(parts) > 2 and parts[2] == "critique":
-                    critique_index = int(parts[3])
-                    critique_count = await conn.fetchval('''
-                        SELECT COUNT(*) FROM critiques WHERE argument_id = $1
-                    ''', argument_id)
-                    if critique_index >= critique_count:
-                        raise HTTPException(status_code=400, detail="Critique does not exist")
-                        
-        except (ValueError, IndexError):
-            raise HTTPException(status_code=400, detail="Invalid statement ID format")
-    else:
-        raise HTTPException(status_code=400, detail="Invalid statement ID format")
     
     # Store rating (upsert)
     async with db_pool.acquire() as conn:
