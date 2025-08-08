@@ -275,7 +275,7 @@ class NewCritique(BaseModel):
     author: str
 
 class NewRating(BaseModel):
-    statement_id: str  # "panel_X" or "panel_X_critique_Y"
+    statement_id: int  # id for argument or critique
     quality_rating: int  # 1-7
     agreement_rating: int  # 1-7
     author: str
