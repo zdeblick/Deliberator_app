@@ -227,7 +227,7 @@ async def convert_to_frontend_format():
                 c.start_ind, c.end_ind, c.author as critique_author
             FROM arguments a
             LEFT JOIN critiques c ON a.argument_id = c.argument_id
-            ORDER BY a.column_index, a.position_in_column, c.critique_id
+            ORDER BY a.column_index, a.position_in_column, c.in_category_pos
         '''
         
         rows = await conn.fetch(panels_query)
@@ -407,12 +407,12 @@ async def add_critique(new_crit: NewCritique):
         next_pos = await conn.fetchval('''
             SELECT COALESCE(MAX(in_category_pos), -1)
             FROM critiques
-            WHERE argument_id = $1 AND category = $2
+            WHERE argument_id = $1 AND category_index = $2
         ''', new_crit.argument_id, 0)
         
         # Insert critique with the statement_id
         await conn.execute('''
-            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, category, in_category_pos)
+            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, category_index, in_category_pos)
             VALUES ($1, $2, $3, $4, $5, $6, 0, )
         ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
     
