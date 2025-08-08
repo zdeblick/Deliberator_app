@@ -231,8 +231,8 @@ async def convert_to_frontend_format():
         
         rows = await conn.fetch(panels_query)
         
-        max_col = max(rows['column_index'] for row in rows) if rows else 0
-        columns = [[] for _ in range(max_col + 1)]
+        # max_col = max(rows['column_index'] for row in rows) if rows else 0
+        columns = [[] for _ in range(num_columns)]
 
         argument_id = -1
         for row in rows:
