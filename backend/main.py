@@ -221,8 +221,7 @@ async def convert_to_frontend_format():
         # Get all arguments with their current positions and critiques
         panels_query = '''
             SELECT 
-                a.argument_id, a.argument, a.author, 
-                a.column_index, a.position_in_column,
+                a.argument_id, a.argument, a.author, a.column_index,
                 c.critique_id, c.text as critique_text, 
                 c.start_ind, c.end_ind, c.author as critique_author
             FROM arguments a
@@ -232,58 +231,30 @@ async def convert_to_frontend_format():
         
         rows = await conn.fetch(panels_query)
         
-        # Group by panel
-        panels_dict = {}
+        max_col = max(rows['column_index'] for row in rows) if rows else 0
+        columns = [[] for _ in range(max_col + 1)]
+
+        argument_id = -1
         for row in rows:
-            argument_id = row['argument_id']
-            if argument_id not in panels_dict:
-                panels_dict[argument_id] = {
-                    'argument_id': argument_id,
+            if argument_id != row['argument_id']:
+                columns[row['column_index']].append( {
+                    'argument_id': row['argument_id'],
                     'argument': row['argument'],
                     'author': row['author'],
-                    'column_index': row['column_index'] or 0,  # Default to 0 if no position set
-                    'position_in_column': row['position_in_column'] or 0,
                     'critiques': []
-                }
+                })
+                argument_id = row['argument_id']
             
             # Add critique if it exists
             if row['critique_id']:
-                panels_dict[argument_id]['critiques'].append([
+                columns[row['column_index']][-1]['critiques'].append([
                     row['critique_text'],
                     row['start_ind'],
                     row['end_ind'],
                     row['critique_author'],
-                    row['in_category_pos'],
                     row['critique_id']
                 ])
-        
-        # Group by columns
-        if not panels_dict:
-            return []
-            
-        max_col = max(panel['column_index'] for panel in panels_dict.values()) if panels_dict else 0
-        columns = [[] for _ in range(max_col + 1)]
-        
-        for panel in panels_dict.values():
-            columns[panel['column_index']].append({
-                'argument_id': panel['argument_id'],
-                'argument': panel['argument'],
-                'author': panel['author'],
-                'critiques': panel['critiques']
-            })
-        
-        # Sort each column by position
-        for col_idx, column in enumerate(columns):
-            # Get positions for sorting
-            panel_positions = []
-            for panel in column:
-                argument_id = panel['argument_id']
-                position = next(p['position_in_column'] for p in panels_dict.values() if p['argument_id'] == argument_id)
-                panel_positions.append((position, panel))
-            
-            panel_positions.sort(key=lambda x: x[0])
-            columns[col_idx] = [panel for position, panel in panel_positions]
-        
+
         return columns
 
 class UserLogin(BaseModel):
