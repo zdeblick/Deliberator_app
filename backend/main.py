@@ -96,12 +96,12 @@ async def init_database():
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS ratings (
                 rating_id SERIAL PRIMARY KEY,
-                ratee_id INTEGER REFERENCES statements(id) ON DELETE CASCADE,
+                statement_id INTEGER REFERENCES statements(id) ON DELETE CASCADE,
                 author VARCHAR(255) NOT NULL,
                 quality_rating INTEGER CHECK (quality_rating >= 1 AND quality_rating <= 7),
                 agreement_rating INTEGER CHECK (agreement_rating >= 1 AND agreement_rating <= 7),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(ratee_id, author)
+                UNIQUE(statement_id, author)
             )
         ''')
         
