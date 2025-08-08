@@ -413,8 +413,8 @@ async def add_critique(new_crit: NewCritique):
         # Insert critique with the statement_id
         await conn.execute('''
             INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, category_index, in_category_pos)
-            VALUES ($1, $2, $3, $4, $5, $6, 0, )
-        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip(),0,next_pos)
     
     return {"message": "Critique added successfully"}
 
