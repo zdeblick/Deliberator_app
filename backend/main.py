@@ -403,11 +403,17 @@ async def add_critique(new_crit: NewCritique):
             VALUES ('critique')
             RETURNING id
         ''')
+
+        next_pos = await conn.fetchval('''
+            SELECT COALESCE(MAX(in_category_pos), -1)
+            FROM critiques
+            WHERE argument_id = $1 AND category = $2
+        ''', new_crit.argument_id, 0)
         
         # Insert critique with the statement_id
         await conn.execute('''
-            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, category, in_category_pos)
+            VALUES ($1, $2, $3, $4, $5, $6, 0, )
         ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip())
     
     return {"message": "Critique added successfully"}
