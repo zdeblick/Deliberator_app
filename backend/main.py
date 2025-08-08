@@ -136,83 +136,83 @@ async def init_database():
                     VALUES ($1, $2, $3, $4, $5)
                 ''', statement_id, argument, author, col_idx, pos)
                 
-                # Add sample critiques
-                if statement_id == 1:  # First panel
-                    # Create statement entries for critiques
-                    critique1_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
-                    critique2_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
+                # # Add sample critiques
+                # if statement_id == 1:  # First panel
+                #     # Create statement entries for critiques
+                #     critique1_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
+                #     critique2_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
                     
-                    await conn.execute('''
-                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                        VALUES 
-                        ($1, $2, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
-                        ($3, $2, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
-                    ''', critique1_id, statement_id, critique2_id)
+                #     await conn.execute('''
+                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
+                #         VALUES 
+                #         ($1, $2, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
+                #         ($3, $2, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
+                #     ''', critique1_id, statement_id, critique2_id)
                     
-                elif statement_id == 2:  # Second panel
-                    critique1_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
-                    critique2_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
+                # elif statement_id == 2:  # Second panel
+                #     critique1_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
+                #     critique2_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
                     
-                    await conn.execute('''
-                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                        VALUES 
-                        ($1, $2, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
-                        ($3, $2, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
-                    ''', critique1_id, statement_id, critique2_id)
+                #     await conn.execute('''
+                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
+                #         VALUES 
+                #         ($1, $2, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
+                #         ($3, $2, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
+                #     ''', critique1_id, statement_id, critique2_id)
                     
-                elif statement_id == 3:  # Third panel
-                    critique1_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
-                    critique2_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
+                # elif statement_id == 3:  # Third panel
+                #     critique1_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
+                #     critique2_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
                     
-                    await conn.execute('''
-                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                        VALUES 
-                        ($1, $2, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
-                        ($3, $2, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
-                    ''', critique1_id, statement_id, critique2_id)
+                #     await conn.execute('''
+                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
+                #         VALUES 
+                #         ($1, $2, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
+                #         ($3, $2, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
+                #     ''', critique1_id, statement_id, critique2_id)
                     
-                elif statement_id == 4:  # Fourth panel
-                    critique1_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
-                    critique2_id = await conn.fetchval('''
-                        INSERT INTO statements (statement_type)
-                        VALUES ('critique')
-                        RETURNING id
-                    ''')
+                # elif statement_id == 4:  # Fourth panel
+                #     critique1_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
+                #     critique2_id = await conn.fetchval('''
+                #         INSERT INTO statements (statement_type)
+                #         VALUES ('critique')
+                #         RETURNING id
+                #     ''')
                     
-                    await conn.execute('''
-                        INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                        VALUES 
-                        ($1, $2, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
-                        ($3, $2, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
-                    ''', critique1_id, statement_id, critique2_id)
+                #     await conn.execute('''
+                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
+                #         VALUES 
+                #         ($1, $2, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
+                #         ($3, $2, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
+                #     ''', critique1_id, statement_id, critique2_id)
 
 
 async def convert_to_frontend_format():
