@@ -242,7 +242,7 @@ class NewCritique(BaseModel):
     start_ind: int
     end_ind: int
     author: str
-    position: str
+    position: int
 
 class NewRating(BaseModel):
     statement_id: int  # id for argument or critique
@@ -347,7 +347,7 @@ async def add_critique(new_crit: NewCritique):
         if panel['column_index']==num_columns-1:
             category_index = 1
         else:
-            category_index = panel['column_index'] if new_crit.position=='supporting' else 1-panel['column_index']
+            category_index = panel['column_index'] if new_crit.position==0 else 1-panel['column_index']
         next_pos = await conn.fetchval('''
             SELECT COALESCE(MAX(in_category_pos), -1)
             FROM critiques
