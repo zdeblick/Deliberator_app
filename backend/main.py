@@ -12,6 +12,7 @@ from matrixfactorization import train_matrix_factorization
 
 # Database connection pool
 db_pool = None
+num_columns = 3
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,13 +45,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-async def set_value(key, value):
+async def set_value(key, value, overwrite=True):
     async with db_pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO key_value_store (key, value) VALUES ($1, $2) "
-            "ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP",
-            key, value
-        )
+        if overwrite:
+            await conn.execute(
+                "INSERT INTO key_value_store (key, value) VALUES ($1, $2) "
+                "ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP",
+                key, value
+            )
+        else:
+            await conn.execute(
+                "INSERT INTO key_value_store (key, value) VALUES ($1, $2) "
+                "ON CONFLICT (key) DO NOTHING",
+                key, value
+            )
 
 async def get_value(key):
     async with db_pool.acquire() as conn:
@@ -63,7 +71,7 @@ async def init_database():
         await conn.execute('CREATE SCHEMA IF NOT EXISTS public')
 
         await conn.execute('''
-                CREATE TABLE key_value_store (
+                CREATE TABLE IF NOT EXISTS key_value_store (
                 key VARCHAR(255) PRIMARY KEY,
                 value TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -71,8 +79,10 @@ async def init_database():
             );
         ''')
 
-        set_value('num_columns',3)
-        set_value('global_intercept',0)
+        await set_value('num_columns',3,overwrite=False)
+        await set_value('global_intercept',0,overwrite=False)
+        global num_columns
+        num_columns = await get_value('num_columns')
         
         # Create users table
         await conn.execute('''
@@ -252,17 +262,17 @@ async def convert_to_frontend_format():
         panels_query = '''
             SELECT 
                 a.argument_id, a.argument, a.author, a.column_index,
-                c.critique_id, c.text as critique_text, 
+                c.critique_id, c.text as critique_text, c.category_index
                 c.start_ind, c.end_ind, c.author as critique_author
             FROM arguments a
             LEFT JOIN critiques c ON a.argument_id = c.argument_id
-            ORDER BY a.column_index, a.position_in_column, c.in_category_pos
+            ORDER BY a.column_index, a.position_in_column, c.category_index, c.in_category_pos
         '''
         
         rows = await conn.fetch(panels_query)
         
         # max_col = max(rows['column_index'] for row in rows) if rows else 0
-        columns = [[] for _ in range(get_value('num_columns'))]
+        columns = [[] for _ in range(num_columns)]
 
         argument_id = -1
         for row in rows:
@@ -282,7 +292,8 @@ async def convert_to_frontend_format():
                     row['start_ind'],
                     row['end_ind'],
                     row['critique_author'],
-                    row['critique_id']
+                    row['critique_id'],
+                    row['category_index']
                 ])
 
         return columns
@@ -354,7 +365,7 @@ async def add_argument(new_arg: NewArgument):
     
     async with db_pool.acquire() as conn:
         # The last column will be for unsorted args
-        target_column = get_value('num_columns')-1
+        target_column = num_columns-1
         
         # Find the next position in the target column
         max_position = await conn.fetchval('''
@@ -432,7 +443,7 @@ async def add_rating(new_rating: NewRating):
     
     # Store rating (upsert)
     async with db_pool.acquire() as conn:
-        await conn.execute('''
+        rating_id = await conn.fetchval('''
             INSERT INTO ratings (statement_id, author, quality_rating, agreement_rating)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (statement_id, author)
@@ -440,11 +451,15 @@ async def add_rating(new_rating: NewRating):
                 quality_rating = EXCLUDED.quality_rating,
                 agreement_rating = EXCLUDED.agreement_rating,
                 created_at = CURRENT_TIMESTAMP
-        ''', new_rating.statement_id, new_rating.author.strip(), 
-             new_rating.quality_rating, new_rating.agreement_rating)
+            RETURNING id
+        ''',
+            new_rating.statement_id,
+            new_rating.author.strip(),
+            new_rating.quality_rating,
+            new_rating.agreement_rating
+        )
     
-    # Check if we should trigger repositioning!!!
-    repositioned = False
+    repositioned = (rating_id>19) and (rating_id%10)==0
     
     if repositioned:
         rows =  await conn.fetch('''
@@ -467,7 +482,7 @@ async def add_rating(new_rating: NewRating):
             rows = await conn.fetch('SELECT factor, intercept FROM statements')
             init_params['statement_factors'] = [r['factor'] for r in rows]
             init_params['statement_intercepts'] = [r['intercept'] for r in rows]
-            init_params['global_intercept'] = get_value('global_intercept')
+            init_params['global_intercept'] = await get_value('global_intercept')
         model, _ = train_matrix_factorization(a_ratings, user_indexes, statement_indexes, init_params=init_params)
         user_factors = model.user_factors.weight.detach().numpy().squeeze()
         statement_factors = model.statement_factors.weight.detach().numpy().squeeze()
@@ -480,21 +495,57 @@ async def add_rating(new_rating: NewRating):
         user_clusters = np.where(is_rator,(user_factors>0),np.nan)
         is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes)
         statement_clusters = np.where(is_rated,(statement_factors>0),np.nan)
-
-        majority = np.nanmean(user_clusters)>0.5
-        statement_cols = np.where(statement_clusters==majority,0,1)
-        statement_quality = !!!
+        majority = 1*(np.nanmean(user_clusters)>0.5)
+        minority = 1-majority
+        condlist = [statement_clusters==majority, statement_clusters==minority, np.isnan(statement_clusters)]
+        
+        statement_cols = np.select(condlist,np.arange(num_cols),default=np.nan)
+        mask = user_clusters[user_indexes]==statement_clusters[statement_indexes]  #ratings where users rated statements in their corresponding category
+        quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask])
+        is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes[mask])
+        statement_quality = np.where(is_rated,quality_model.statement_intercepts.weight.detach().numpy().squeeze(),-1e6)
         
         argument_ids =  await conn.fetchvals('SELECT argument_id FROM arguments')
         argument_cols = statement_cols[np.array(argument_ids)]
-        
+        argument_quality = statement_quality[np.array(argument_ids)]
+        position_in_column = np.nan*np.ones_like(argument_cols)
+        for col in range(num_columns):
+            position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col])
 
         rows = await conn.fetch('SELECT critique_id, argument_id FROM critiques')
-        critique_ids = [r['critique_ids'] for r in rows]
+        critique_ids = [r['critique_id'] for r in rows]
         critique_cols = statement_cols[np.array(critique_ids)]
-        parent_ids = [r['argument_ids'] for r in rows]
+        critique_quality = statement_quality[np.array(critique_ids)]
+        parent_ids = [r['argument_id'] for r in rows]
+        in_category_pos = np.nan*np.ones_like(critique_cols)
+        category_index = np.nan*np.ones_like(critique_cols)
         
+        for parent_id in np.unique(parent_ids):
+            # assenting critiques
+            mask = (parent_ids==parent_id) & (critique_cols==argument_cols[parent_id])
+            in_category_pos[mask] = np.argsort(-critique_quality[mask])
+            category_index[mask] = 1*(argument_cols[parent_id]==1) # put critiques on the side towards the column they're associated with
+            # dissenting critiques
+            mask = (parent_ids==parent_id) & (critique_cols!=argument_cols[parent_id])
+            in_category_pos[mask] = np.argsort(-critique_quality[mask])
+            category_index[mask] = 1-1*(argument_cols[parent_id]==1)
+
+        await conn.executemany('''
+                UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
+            ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size)])
+
+        await conn.executemany('''
+                UPDATE statements SET factor = $1, intercept = $2 WHERE id = $3
+            ''', [(factor, intercept, id) for (factor, intercept, id) in zip(statement_factors,statement_intercepts,range(statement_factors.size)])
         
+        await conn.executemany('''
+                UPDATE arguments SET column_index = $1, position_in_column = $2 WHERE argument_id = $3
+            ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,range(position_in_column.size)])
+
+        await conn.executemany('''
+                UPDATE critiques SET category_index = $1, in_category_pos = $2 WHERE critique_id = $3
+            ''', [(cat, pos, critique_id) for (cat, pos, critique_id) in zip(category_index,in_category_pos,range(in_category_pos.size)])
+
     
     response = {"message": "Rating added successfully"}
     if repositioned:
