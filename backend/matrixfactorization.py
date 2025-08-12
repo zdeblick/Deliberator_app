@@ -58,8 +58,8 @@ class MatrixFactorization(nn.Module):
         dot_product = (user_embedding * statement_embedding).sum(dim=-1)
         return (self.global_offset + user_offset + statement_offset + dot_product).squeeze()
 
-def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_users, n_statements, n_factors=1, lr=0.01, n_epochs=300, 
-                             reg_factors=0.06, reg_offsets=0.3, init_params = None):
+def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_factors=1, lr=0.01, n_epochs=100, 
+                             reg_factors=0.01, reg_offsets=0.001):
     """
     Train matrix factorization model with offsets using ModelData format
     
@@ -67,16 +67,16 @@ def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n
         rating_labels,
         user_indexes, 
         statement_indexes,
-        n_users: Total number of users 
-        n_statements: Total number of statements
         n_factors: number of latent factors
         lr: learning rate
         n_epochs: number of training epochs
         reg_factors: regularization strength for factors
         reg_offsets: regularization strength for offset terms
-        init_params: an optional dictionary of parameter values to initialize the model with
     """
     
+    n_users = np.max(user_indexes)+1
+    n_statements = np.max(statement_indexes)+1
+                                 
     # Initialize model
     model = MatrixFactorization(n_users, n_statements, n_factors)
     data = ModelData(torch.FloatTensor(rating_labels).squeeze().to(model.device), 
