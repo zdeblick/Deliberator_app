@@ -1,5 +1,7 @@
 fastapi
 uvicorn
 numpy
+torch
 --only-binary=:all:
 asyncpg==0.30.0
+
