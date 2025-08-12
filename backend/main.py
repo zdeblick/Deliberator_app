@@ -176,84 +176,6 @@ async def init_database():
                     VALUES ($1, $2, $3, $4, $5)
                 ''', statement_id, argument, author, col_idx, pos)
                 
-                # # Add sample critiques
-                # if statement_id == 1:  # First panel
-                #     # Create statement entries for critiques
-                #     critique1_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                #     critique2_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                    
-                #     await conn.execute('''
-                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                #         VALUES 
-                #         ($1, $2, 'The scientific consensus claim needs more specific evidence', 85, 120, 'Skeptic1'),
-                #         ($3, $2, 'What about natural climate variations?', 0, 27, 'NaturalCycles')
-                #     ''', critique1_id, statement_id, critique2_id)
-                    
-                # elif statement_id == 2:  # Second panel
-                #     critique1_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                #     critique2_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                    
-                #     await conn.execute('''
-                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                #         VALUES 
-                #         ($1, $2, 'Reliability issues during peak demand periods', 77, 85, 'GridExpert'),
-                #         ($3, $2, 'Storage costs not included in analysis', 50, 77, 'EconomyWatch')
-                #     ''', critique1_id, statement_id, critique2_id)
-                    
-                # elif statement_id == 3:  # Third panel
-                #     critique1_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                #     critique2_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                    
-                #     await conn.execute('''
-                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                #         VALUES 
-                #         ($1, $2, 'Wait times can be problematic', 91, 130, 'PatientAdvocate'),
-                #         ($3, $2, 'Different countries have different contexts', 132, 162, 'ComparativeStudy')
-                #     ''', critique1_id, statement_id, critique2_id)
-                    
-                # elif statement_id == 4:  # Fourth panel
-                #     critique1_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                #     critique2_id = await conn.fetchval('''
-                #         INSERT INTO statements (statement_type)
-                #         VALUES ('critique')
-                #         RETURNING id
-                #     ''')
-                    
-                #     await conn.execute('''
-                #         INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author)
-                #         VALUES 
-                #         ($1, $2, 'Risk of reducing human interaction', 74, 101, 'HumanTouch'),
-                #         ($3, $2, 'Privacy concerns with student data', 102, 141, 'PrivacyWatch')
-                #     ''', critique1_id, statement_id, critique2_id)
-
 
 async def convert_to_frontend_format():
     """Convert database data to the frontend format using dynamic positions"""
@@ -532,19 +454,19 @@ async def add_rating(new_rating: NewRating):
 
         await conn.executemany('''
                 UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
-            ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size)])
+            ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size))])
 
         await conn.executemany('''
                 UPDATE statements SET factor = $1, intercept = $2 WHERE id = $3
-            ''', [(factor, intercept, id) for (factor, intercept, id) in zip(statement_factors,statement_intercepts,range(statement_factors.size)])
+            ''', [(factor, intercept, id) for (factor, intercept, id) in zip(statement_factors,statement_intercepts,range(statement_factors.size))])
         
         await conn.executemany('''
                 UPDATE arguments SET column_index = $1, position_in_column = $2 WHERE argument_id = $3
-            ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,range(position_in_column.size)])
+            ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,range(position_in_column.size))])
 
         await conn.executemany('''
                 UPDATE critiques SET category_index = $1, in_category_pos = $2 WHERE critique_id = $3
-            ''', [(cat, pos, critique_id) for (cat, pos, critique_id) in zip(category_index,in_category_pos,range(in_category_pos.size)])
+            ''', [(cat, pos, critique_id) for (cat, pos, critique_id) in zip(category_index,in_category_pos,range(in_category_pos.size))])
 
     
     response = {"message": "Rating added successfully"}
