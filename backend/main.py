@@ -190,7 +190,7 @@ async def convert_to_frontend_format():
         panels_query = '''
             SELECT 
                 a.argument_id, a.argument, a.author, a.column_index,
-                c.critique_id, c.text as critique_text, c.category_index
+                c.critique_id, c.text as critique_text, c.category_index,
                 c.start_ind, c.end_ind, c.author as critique_author
             FROM arguments a
             LEFT JOIN critiques c ON a.argument_id = c.argument_id
