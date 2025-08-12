@@ -7,10 +7,11 @@ import os
 import asyncio
 import asyncpg
 from contextlib import asynccontextmanager
+import numpy as np
+from matrixfactorization import train_matrix_factorization
 
 # Database connection pool
 db_pool = None
-num_columns = 3
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,25 +44,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+async def set_value(key, value):
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO key_value_store (key, value) VALUES ($1, $2) "
+            "ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP",
+            key, value
+        )
+
+async def get_value(key):
+    async with db_pool.acquire() as conn:
+        return await conn.fetchval("SELECT value FROM key_value_store WHERE key = $1", key)
+
 async def init_database():
     """Initialize database tables"""
     async with db_pool.acquire() as conn:
         # init schema in case it got deleted
         await conn.execute('CREATE SCHEMA IF NOT EXISTS public')
+
+        await conn.execute('''
+                CREATE TABLE key_value_store (
+                key VARCHAR(255) PRIMARY KEY,
+                value TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+
+        set_value('num_columns',3)
+        set_value('global_intercept',0)
         
         # Create users table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                username VARCHAR(255) PRIMARY KEY,
-                password VARCHAR(255)
-            )
+            user_id SERIAL PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255),
+            factor DOUBLE PRECISION,
+            intercept DOUBLE PRECISION
+        )
         ''')
 
         # Create statements table
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS statements (
                 id SERIAL PRIMARY KEY,
-                statement_type TEXT NOT NULL
+                statement_type TEXT NOT NULL,
+                factor DOUBLE PRECISION,
+                intercept DOUBLE PRECISION
             )
         ''')
         
@@ -232,7 +262,7 @@ async def convert_to_frontend_format():
         rows = await conn.fetch(panels_query)
         
         # max_col = max(rows['column_index'] for row in rows) if rows else 0
-        columns = [[] for _ in range(num_columns)]
+        columns = [[] for _ in range(get_value('num_columns'))]
 
         argument_id = -1
         for row in rows:
@@ -324,7 +354,7 @@ async def add_argument(new_arg: NewArgument):
     
     async with db_pool.acquire() as conn:
         # The last column will be for unsorted args
-        target_column = num_columns-1
+        target_column = get_value('num_columns')-1
         
         # Find the next position in the target column
         max_position = await conn.fetchval('''
@@ -415,6 +445,56 @@ async def add_rating(new_rating: NewRating):
     
     # Check if we should trigger repositioning!!!
     repositioned = False
+    
+    if repositioned:
+        rows =  await conn.fetch('''
+            SELECT 
+                r.agreement_rating, r.quality_rating, u.user_id, r.statement_id
+            FROM ratings r
+            LEFT JOIN users u ON r.author = u.username
+        ''')
+        a_ratings = [(row['agreement_rating']-4)/3 for row in rows]    # scale to [-1,1]
+        q_ratings = [(row['quality_rating'])/3 for row in rows]        # scale to [-1,1]
+        user_indexes = [row['user_id'] for row in rows]              
+        statement_indexes = [row['statement_id'] for row in rows]    
+
+        init_params = None
+        if False: #warm start
+            init_params = {}
+            rows = await conn.fetch('SELECT factor, intercept FROM users')
+            init_params['user_factors'] = [r['factor'] for r in rows]
+            init_params['user_intercepts'] = [r['intercept'] for r in rows]
+            rows = await conn.fetch('SELECT factor, intercept FROM statements')
+            init_params['statement_factors'] = [r['factor'] for r in rows]
+            init_params['statement_intercepts'] = [r['intercept'] for r in rows]
+            init_params['global_intercept'] = get_value('global_intercept')
+        model, _ = train_matrix_factorization(a_ratings, user_indexes, statement_indexes, init_params=init_params)
+        user_factors = model.user_factors.weight.detach().numpy().squeeze()
+        statement_factors = model.statement_factors.weight.detach().numpy().squeeze()
+        user_intercepts = model.user_intercepts.weight.detach().numpy().squeeze()
+        statement_intercepts = model.statement_intercepts.weight.detach().numpy().squeeze()
+        global_intercept = model.global_intercept.item()
+
+        # TODO: use actual clustering for more than 2 clusters
+        is_rator = np.isin(np.arange(user_factors.shape[0]),user_indexes)
+        user_clusters = np.where(is_rator,(user_factors>0),np.nan)
+        is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes)
+        statement_clusters = np.where(is_rated,(statement_factors>0),np.nan)
+
+        majority = np.nanmean(user_clusters)>0.5
+        statement_cols = np.where(statement_clusters==majority,0,1)
+        statement_quality = !!!
+        
+        argument_ids =  await conn.fetchvals('SELECT argument_id FROM arguments')
+        argument_cols = statement_cols[np.array(argument_ids)]
+        
+
+        rows = await conn.fetch('SELECT critique_id, argument_id FROM critiques')
+        critique_ids = [r['critique_ids'] for r in rows]
+        critique_cols = statement_cols[np.array(critique_ids)]
+        parent_ids = [r['argument_ids'] for r in rows]
+        
+        
     
     response = {"message": "Rating added successfully"}
     if repositioned:
