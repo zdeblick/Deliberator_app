@@ -73,7 +73,7 @@ async def init_database():
         await conn.execute('''
                 CREATE TABLE IF NOT EXISTS key_value_store (
                 key VARCHAR(255) PRIMARY KEY,
-                value TEXT,
+                value JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
