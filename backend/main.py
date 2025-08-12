@@ -381,7 +381,7 @@ async def add_rating(new_rating: NewRating):
                 quality_rating = EXCLUDED.quality_rating,
                 agreement_rating = EXCLUDED.agreement_rating,
                 created_at = CURRENT_TIMESTAMP
-            RETURNING id
+            RETURNING rating_id
         ''',
             new_rating.statement_id,
             new_rating.author.strip(),
