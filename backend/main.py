@@ -9,6 +9,7 @@ import asyncpg
 from contextlib import asynccontextmanager
 import numpy as np
 from matrixfactorization import train_matrix_factorization
+import json
 
 # Database connection pool
 db_pool = None
@@ -47,23 +48,28 @@ app.add_middleware(
 
 async def set_value(key, value, overwrite=True):
     async with db_pool.acquire() as conn:
+        json_value = json.dumps(value)
+        
         if overwrite:
             await conn.execute(
                 "INSERT INTO key_value_store (key, value) VALUES ($1, $2) "
                 "ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP",
-                key, value
+                key, json_value
             )
         else:
             await conn.execute(
                 "INSERT INTO key_value_store (key, value) VALUES ($1, $2) "
                 "ON CONFLICT (key) DO NOTHING",
-                key, value
+                key, json_value
             )
 
 async def get_value(key):
     async with db_pool.acquire() as conn:
-        return await conn.fetchval("SELECT value FROM key_value_store WHERE key = $1", key)
-
+        result = await conn.fetchval("SELECT value FROM key_value_store WHERE key = $1", key)
+        if result is None:
+            return None
+        return json.loads(result)
+        
 async def init_database():
     """Initialize database tables"""
     async with db_pool.acquire() as conn:
