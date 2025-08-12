@@ -242,6 +242,7 @@ class NewCritique(BaseModel):
     start_ind: int
     end_ind: int
     author: str
+    position: str
 
 class NewRating(BaseModel):
     statement_id: int  # id for argument or critique
@@ -328,7 +329,7 @@ async def add_critique(new_crit: NewCritique):
     
     async with db_pool.acquire() as conn:
         # Validate panel exists and get argument text
-        panel = await conn.fetchrow('SELECT argument FROM arguments WHERE argument_id = $1', new_crit.argument_id)
+        panel = await conn.fetchrow('SELECT argument, column_index FROM arguments WHERE argument_id = $1', new_crit.argument_id)
         if not panel:
             raise HTTPException(status_code=400, detail="Invalid panel ID")
         
@@ -343,18 +344,21 @@ async def add_critique(new_crit: NewCritique):
             VALUES ('critique')
             RETURNING id
         ''')
-
+        if panel['column_index']==num_columns-1:
+            category_index = 1
+        else:
+            category_index = panel['column_index'] if new_crit.position=='supporting' else 1-panel['column_index']
         next_pos = await conn.fetchval('''
             SELECT COALESCE(MAX(in_category_pos), -1)
             FROM critiques
             WHERE argument_id = $1 AND category_index = $2
-        ''', new_crit.argument_id, 0)
+        ''', new_crit.argument_id, category_index)
         
         # Insert critique with the statement_id
         await conn.execute('''
             INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, category_index, in_category_pos)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip(),0,next_pos)
+        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip(),category_index,next_pos)
     
     return {"message": "Critique added successfully"}
 
