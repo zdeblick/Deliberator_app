@@ -1,7 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+--only-binary=:all:
+
 fastapi
 uvicorn
 numpy
-torch==2.0.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
---only-binary=:all:
+torch+cpu
 asyncpg==0.30.0
-
