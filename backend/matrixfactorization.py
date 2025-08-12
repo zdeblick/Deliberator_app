@@ -58,8 +58,8 @@ class MatrixFactorization(nn.Module):
         dot_product = (user_embedding * statement_embedding).sum(dim=-1)
         return (self.global_offset + user_offset + statement_offset + dot_product).squeeze()
 
-def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_factors=1, lr=0.01, n_epochs=100, 
-                             reg_factors=0.01, reg_offsets=0.001):
+def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_factors=1, lr=0.01, n_epochs=200, 
+                             reg_factors=0.06, reg_offsets=0.3):
     """
     Train matrix factorization model with offsets using ModelData format
     
