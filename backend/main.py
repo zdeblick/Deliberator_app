@@ -391,12 +391,13 @@ async def add_rating(new_rating: NewRating):
     repositioned = (rating_id>19) and (rating_id%10)==0
     
     if repositioned:
-        rows =  await conn.fetch('''
-            SELECT 
-                r.agreement_rating, r.quality_rating, u.user_id, r.statement_id
-            FROM ratings r
-            LEFT JOIN users u ON r.author = u.username
-        ''')
+        async with db_pool.acquire() as conn:
+            rows =  await conn.fetch('''
+                SELECT 
+                    r.agreement_rating, r.quality_rating, u.user_id, r.statement_id
+                FROM ratings r
+                LEFT JOIN users u ON r.author = u.username
+            ''')
         a_ratings = [(row['agreement_rating']-4)/3 for row in rows]    # scale to [-1,1]
         q_ratings = [(row['quality_rating'])/3 for row in rows]        # scale to [-1,1]
         user_indexes = [row['user_id'] for row in rows]              
@@ -405,13 +406,14 @@ async def add_rating(new_rating: NewRating):
         init_params = None
         if False: #warm start
             init_params = {}
-            rows = await conn.fetch('SELECT factor, intercept FROM users')
-            init_params['user_factors'] = [r['factor'] for r in rows]
-            init_params['user_intercepts'] = [r['intercept'] for r in rows]
-            rows = await conn.fetch('SELECT factor, intercept FROM statements')
-            init_params['statement_factors'] = [r['factor'] for r in rows]
-            init_params['statement_intercepts'] = [r['intercept'] for r in rows]
-            init_params['global_intercept'] = await get_value('global_intercept')
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch('SELECT factor, intercept FROM users')
+                init_params['user_factors'] = [r['factor'] for r in rows]
+                init_params['user_intercepts'] = [r['intercept'] for r in rows]
+                rows = await conn.fetch('SELECT factor, intercept FROM statements')
+                init_params['statement_factors'] = [r['factor'] for r in rows]
+                init_params['statement_intercepts'] = [r['intercept'] for r in rows]
+                init_params['global_intercept'] = await get_value('global_intercept')
         model, _ = train_matrix_factorization(a_ratings, user_indexes, statement_indexes, init_params=init_params)
         user_factors = model.user_factors.weight.detach().numpy().squeeze()
         statement_factors = model.statement_factors.weight.detach().numpy().squeeze()
@@ -433,15 +435,17 @@ async def add_rating(new_rating: NewRating):
         quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask])
         is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes[mask])
         statement_quality = np.where(is_rated,quality_model.statement_intercepts.weight.detach().numpy().squeeze(),-1e6)
-        
-        argument_ids =  await conn.fetchvals('SELECT argument_id FROM arguments')
+
+        async with db_pool.acquire() as conn:
+            argument_ids =  await conn.fetchvals('SELECT argument_id FROM arguments')
         argument_cols = statement_cols[np.array(argument_ids)]
         argument_quality = statement_quality[np.array(argument_ids)]
         position_in_column = np.nan*np.ones_like(argument_cols)
         for col in range(num_columns):
             position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col])
 
-        rows = await conn.fetch('SELECT critique_id, argument_id FROM critiques')
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch('SELECT critique_id, argument_id FROM critiques')
         critique_ids = [r['critique_id'] for r in rows]
         critique_cols = statement_cols[np.array(critique_ids)]
         critique_quality = statement_quality[np.array(critique_ids)]
@@ -459,21 +463,22 @@ async def add_rating(new_rating: NewRating):
             in_category_pos[mask] = np.argsort(-critique_quality[mask])
             category_index[mask] = 1-1*(argument_cols[parent_id]==1)
 
-        await conn.executemany('''
-                UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
-            ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size))])
-
-        await conn.executemany('''
-                UPDATE statements SET factor = $1, intercept = $2 WHERE id = $3
-            ''', [(factor, intercept, id) for (factor, intercept, id) in zip(statement_factors,statement_intercepts,range(statement_factors.size))])
-        
-        await conn.executemany('''
-                UPDATE arguments SET column_index = $1, position_in_column = $2 WHERE argument_id = $3
-            ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,range(position_in_column.size))])
-
-        await conn.executemany('''
-                UPDATE critiques SET category_index = $1, in_category_pos = $2 WHERE critique_id = $3
-            ''', [(cat, pos, critique_id) for (cat, pos, critique_id) in zip(category_index,in_category_pos,range(in_category_pos.size))])
+        async with db_pool.acquire() as conn:
+            await conn.executemany('''
+                    UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
+                ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size))])
+    
+            await conn.executemany('''
+                    UPDATE statements SET factor = $1, intercept = $2 WHERE id = $3
+                ''', [(factor, intercept, id) for (factor, intercept, id) in zip(statement_factors,statement_intercepts,range(statement_factors.size))])
+            
+            await conn.executemany('''
+                    UPDATE arguments SET column_index = $1, position_in_column = $2 WHERE argument_id = $3
+                ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,range(position_in_column.size))])
+    
+            await conn.executemany('''
+                    UPDATE critiques SET category_index = $1, in_category_pos = $2 WHERE critique_id = $3
+                ''', [(cat, pos, critique_id) for (cat, pos, critique_id) in zip(category_index,in_category_pos,range(in_category_pos.size))])
 
     
     response = {"message": "Rating added successfully"}
