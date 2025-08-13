@@ -430,7 +430,7 @@ async def add_rating(new_rating: NewRating):
         minority = 1-majority
         condlist = [statement_clusters==majority, statement_clusters==minority, np.isnan(statement_clusters)]
         
-        statement_cols = np.select(condlist,np.arange(num_cols),default=np.nan)
+        statement_cols = np.select(condlist,np.arange(num_columns),default=np.nan)
         mask = user_clusters[user_indexes]==statement_clusters[statement_indexes]  #ratings where users rated statements in their corresponding category
         quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask])
         is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes[mask])
