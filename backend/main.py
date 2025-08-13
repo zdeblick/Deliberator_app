@@ -437,7 +437,7 @@ async def add_rating(new_rating: NewRating):
         statement_quality = np.where(is_rated,quality_model.statement_intercepts.weight.detach().numpy().squeeze(),-1e6)
 
         async with db_pool.acquire() as conn:
-            argument_ids =  await conn.fetchvals('SELECT argument_id FROM arguments')
+            argument_ids =  await conn.fetchval('SELECT argument_id FROM arguments')
         argument_cols = statement_cols[np.array(argument_ids)]
         argument_quality = statement_quality[np.array(argument_ids)]
         position_in_column = np.nan*np.ones_like(argument_cols)
