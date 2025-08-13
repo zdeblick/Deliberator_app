@@ -234,7 +234,7 @@ class UserLogin(BaseModel):
 class NewArgument(BaseModel):
     argument: str
     author: str
-    # Removed column_index - positioning will be handled dynamically
+    column_index: int
 
 class NewCritique(BaseModel):
     argument_id: int
@@ -293,8 +293,7 @@ async def add_argument(new_arg: NewArgument):
         raise HTTPException(status_code=400, detail="Author is required")
     
     async with db_pool.acquire() as conn:
-        # The last column will be for unsorted args
-        target_column = num_columns-1
+        target_column = new_arg.column_index
         
         # Find the next position in the target column
         max_position = await conn.fetchval('''
