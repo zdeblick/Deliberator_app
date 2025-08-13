@@ -58,7 +58,7 @@ class MatrixFactorization(nn.Module):
         dot_product = (user_embedding * statement_embedding).sum(dim=-1)
         return (self.global_intercept + user_intercept + statement_intercept + dot_product).squeeze()
 
-def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_factors=1, lr=0.01, n_epochs=200, 
+def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_users=None, n_statements=None, n_factors=1, lr=0.01, n_epochs=200, 
                              reg_factors=0.06, reg_intercepts=0.3, init_params=None):
     """
     Train matrix factorization model with intercepts using ModelData format
@@ -73,9 +73,10 @@ def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n
         reg_factors: regularization strength for factors
         reg_intercepts: regularization strength for intercept terms
     """
-    
-    n_users = np.max(user_indexes)+1
-    n_statements = np.max(statement_indexes)+1
+    if n_users is None:
+        n_users = np.max(user_indexes)+1
+    if n_statements is None:
+        n_statements = np.max(statement_indexes)+1
                                  
     # Initialize model
     model = MatrixFactorization(n_users, n_statements, n_factors, init_params=init_params)

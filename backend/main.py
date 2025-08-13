@@ -388,82 +388,85 @@ async def add_rating(new_rating: NewRating):
             new_rating.agreement_rating
         )
     
-    repositioned = (rating_id>19) and (rating_id%10)==0
-    
-    if repositioned:
-        async with db_pool.acquire() as conn:
+        repositioned = (rating_id>19) and (rating_id%10)==0
+        
+        if repositioned:
             rows =  await conn.fetch('''
                 SELECT 
                     r.agreement_rating, r.quality_rating, u.user_id, r.statement_id
                 FROM ratings r
                 LEFT JOIN users u ON r.author = u.username
             ''')
-        a_ratings = np.array([(row['agreement_rating']-4)/3 for row in rows])    # scale to [-1,1]
-        q_ratings = np.array([(row['quality_rating'])/3 for row in rows])        # scale to [-1,1]
-        user_indexes = np.array([row['user_id'] for row in rows])              
-        statement_indexes = np.array([row['statement_id'] for row in rows]) 
+            a_ratings = np.array([(row['agreement_rating']-4)/3 for row in rows])    # scale to [-1,1]
+            q_ratings = np.array([(row['quality_rating'])/3 for row in rows])        # scale to [-1,1]
+            user_indexes = np.array([row['user_id'] for row in rows])              
+            statement_indexes = np.array([row['statement_id'] for row in rows]) 
 
-        init_params = None
-        if False: #warm start
-            init_params = {}
-            async with db_pool.acquire() as conn:
-                rows = await conn.fetch('SELECT factor, intercept FROM users')
-                init_params['user_factors'] = [r['factor'] for r in rows]
-                init_params['user_intercepts'] = [r['intercept'] for r in rows]
-                rows = await conn.fetch('SELECT factor, intercept FROM statements')
-                init_params['statement_factors'] = [r['factor'] for r in rows]
-                init_params['statement_intercepts'] = [r['intercept'] for r in rows]
+            init_params = None
+            statement_rows = await conn.fetch('SELECT factor, intercept FROM statements')
+            user_rows = await conn.fetch('SELECT factor, intercept FROM users')
+
+            n_users = len(user_rows)+10              #the +1 accounts for 1-indexing in the sql serial ids, allowing them to be used as indices
+            n_statements = len(statement_rows)+10 
+
+            if False: #warm start
+                init_params = {}
+                init_params['user_factors'] = [r['factor'] for r in user_rows]
+                init_params['user_intercepts'] = [r['intercept'] for r in user_rows]
+                init_params['statement_factors'] = [r['factor'] for r in statement_rows]
+                init_params['statement_intercepts'] = [r['intercept'] for r in statement_rows]
                 init_params['global_intercept'] = await get_value('global_intercept')
-        model, _ = train_matrix_factorization(a_ratings, user_indexes, statement_indexes, init_params=init_params)
-        user_factors = model.user_factors.weight.detach().numpy().squeeze()
-        statement_factors = model.statement_factors.weight.detach().numpy().squeeze()
-        user_intercepts = model.user_intercepts.weight.detach().numpy().squeeze()
-        statement_intercepts = model.statement_intercepts.weight.detach().numpy().squeeze()
-        global_intercept = model.global_intercept.item()
+            model, _ = train_matrix_factorization(a_ratings, user_indexes, statement_indexes,
+                                                    n_users=n_users,n_statements=n_statements, init_params=init_params)
+            user_factors = model.user_factors.weight.detach().numpy().squeeze()
+            statement_factors = model.statement_factors.weight.detach().numpy().squeeze()
+            user_intercepts = model.user_intercepts.weight.detach().numpy().squeeze()
+            statement_intercepts = model.statement_intercepts.weight.detach().numpy().squeeze()
+            global_intercept = model.global_intercept.item()
 
-        # TODO: use actual clustering for more than 2 clusters
-        is_rator = np.isin(np.arange(user_factors.shape[0]),user_indexes)
-        user_clusters = np.where(is_rator,(user_factors>0),np.nan)
-        is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes)
-        statement_clusters = np.where(is_rated,(statement_factors>0),np.nan)
-        majority = 1*(np.nanmean(user_clusters)>0.5)
-        minority = 1-majority
-        condlist = [statement_clusters==majority, statement_clusters==minority, np.isnan(statement_clusters)]
-        
-        statement_cols = np.select(condlist,np.arange(num_columns),default=np.nan)
-        mask = user_clusters[user_indexes]==statement_clusters[statement_indexes]  #ratings where users rated statements in their corresponding category
-        quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask])
-        is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes[mask])
-        statement_quality = np.where(is_rated,quality_model.statement_intercepts.weight.detach().numpy().squeeze(),-1e6)
+            # TODO: use actual clustering for more than 2 clusters
+            is_rator = np.isin(np.arange(user_factors.shape[0]),user_indexes)
+            user_clusters = np.where(is_rator,(user_factors>0),np.nan)
+            is_rated = np.isin(np.arange(statement_factors.shape[0]),statement_indexes)
+            statement_clusters = np.where(is_rated,(statement_factors>0),np.nan)
+            majority = 1*(np.nanmean(user_clusters)>0.5)
+            minority = 1-majority
+            condlist = [statement_clusters==majority, statement_clusters==minority, np.isnan(statement_clusters)]
+            
+            statement_cols = np.select(condlist,np.arange(num_columns),default=np.nan)
+            mask = user_clusters[user_indexes]==statement_clusters[statement_indexes]  #ratings where users rated statements in their corresponding category
+            quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask], n_users=n_users,n_statements=n_statements)
+            intercepts = quality_model.statement_intercepts.weight.detach().numpy().squeeze()
+            is_rated = np.isin(np.arange(intercepts.size),statement_indexes[mask])
+            statement_quality = np.where(is_rated,intercepts,-1e6)
 
-        async with db_pool.acquire() as conn:
-            argument_ids =  await conn.fetchval('SELECT argument_id FROM arguments')
-        argument_cols = statement_cols[np.array(argument_ids)]
-        argument_quality = statement_quality[np.array(argument_ids)]
-        position_in_column = np.nan*np.ones_like(argument_cols)
-        for col in range(num_columns):
-            position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col])
 
-        async with db_pool.acquire() as conn:
+            rows = await conn.fetch('SELECT argument_id FROM arguments')
+            argument_ids = [row['argument_id'] for row in rows]
+            argument_cols = statement_cols[np.array(argument_ids)]
+            argument_quality = statement_quality[np.array(argument_ids)]
+            position_in_column = np.nan*np.ones_like(argument_cols)
+            for col in range(num_columns):
+                position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col])
+
             rows = await conn.fetch('SELECT critique_id, argument_id FROM critiques')
-        critique_ids = [r['critique_id'] for r in rows]
-        critique_cols = statement_cols[np.array(critique_ids)]
-        critique_quality = statement_quality[np.array(critique_ids)]
-        parent_ids = [r['argument_id'] for r in rows]
-        in_category_pos = np.nan*np.ones_like(critique_cols)
-        category_index = np.nan*np.ones_like(critique_cols)
-        
-        for parent_id in np.unique(parent_ids):
-            # assenting critiques
-            mask = (parent_ids==parent_id) & (critique_cols==argument_cols[parent_id])
-            in_category_pos[mask] = np.argsort(-critique_quality[mask])
-            category_index[mask] = 1*(argument_cols[parent_id]==1) # put critiques on the side towards the column they're associated with
-            # dissenting critiques
-            mask = (parent_ids==parent_id) & (critique_cols!=argument_cols[parent_id])
-            in_category_pos[mask] = np.argsort(-critique_quality[mask])
-            category_index[mask] = 1-1*(argument_cols[parent_id]==1)
+            critique_ids = [r['critique_id'] for r in rows]
+            critique_cols = statement_cols[np.array(critique_ids)]
+            critique_quality = statement_quality[np.array(critique_ids)]
+            parent_ids = [r['argument_id'] for r in rows]
+            in_category_pos = np.nan*np.ones_like(critique_cols)
+            category_index = np.nan*np.ones_like(critique_cols)
+            
+            for parent_id in np.unique(parent_ids):
+                # assenting critiques
+                mask = (parent_ids==parent_id) & (critique_cols==statement_cols[parent_id])
+                in_category_pos[mask] = np.argsort(-critique_quality[mask])
+                category_index[mask] = 1*(statement_cols[parent_id]==1) # put critiques on the side towards the column they're associated with
+                # dissenting critiques
+                mask = (parent_ids==parent_id) & (critique_cols!=statement_cols[parent_id])
+                in_category_pos[mask] = np.argsort(-critique_quality[mask])
+                category_index[mask] = 1-1*(statement_cols[parent_id]==1)
 
-        async with db_pool.acquire() as conn:
             await conn.executemany('''
                     UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
                 ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size))])
