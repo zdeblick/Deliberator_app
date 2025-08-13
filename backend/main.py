@@ -398,10 +398,10 @@ async def add_rating(new_rating: NewRating):
                 FROM ratings r
                 LEFT JOIN users u ON r.author = u.username
             ''')
-        a_ratings = [(row['agreement_rating']-4)/3 for row in rows]    # scale to [-1,1]
-        q_ratings = [(row['quality_rating'])/3 for row in rows]        # scale to [-1,1]
-        user_indexes = [row['user_id'] for row in rows]              
-        statement_indexes = [row['statement_id'] for row in rows]    
+        a_ratings = np.array([(row['agreement_rating']-4)/3 for row in rows])    # scale to [-1,1]
+        q_ratings = np.array([(row['quality_rating'])/3 for row in rows])        # scale to [-1,1]
+        user_indexes = np.array([row['user_id'] for row in rows])              
+        statement_indexes = np.array([row['statement_id'] for row in rows]) 
 
         init_params = None
         if False: #warm start
