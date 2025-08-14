@@ -466,8 +466,6 @@ async def add_rating(new_rating: NewRating):
                 mask = (parent_ids==parent_id) & (~supporting_crit)
                 in_category_pos[mask] = np.argsort(-critique_quality[mask])
 
-            print(in_category_pos)
-
             await conn.executemany('''
                     UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
                 ''', [(factor, intercept, user_id) for (factor, intercept, user_id) in zip(user_factors,user_intercepts,range(user_factors.size))])
