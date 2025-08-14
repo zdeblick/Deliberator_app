@@ -152,22 +152,11 @@ async def init_database():
             )
         ''')
         
-        # Insert default user if not exists
-        await conn.execute('''
-            INSERT INTO users (username, password) 
-            VALUES ('system', NULL) 
-            ON CONFLICT (username) DO NOTHING
-        ''')
         
         # Insert sample data if arguments table is empty
         panel_count = await conn.fetchval('SELECT COUNT(*) FROM arguments')
         if panel_count == 0:
-            sample_panels = [
-                # ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
-                # ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech', 0, 1),
-                # ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy', 1, 0),
-                # ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture', 2, 0)
-            ]
+            sample_panels = []
             
             for argument, author, col_idx, pos in sample_panels:
                 # First create a statement entry
@@ -409,7 +398,7 @@ async def add_rating(new_rating: NewRating):
             statement_rows = await conn.fetch('SELECT factor, intercept FROM statements')
             user_rows = await conn.fetch('SELECT factor, intercept FROM users')
 
-            n_users = len(user_rows)+10              #the +1 accounts for 1-indexing in the sql serial ids, allowing them to be used as indices
+            n_users = len(user_rows)+10      
             n_statements = len(statement_rows)+10 
 
             if False: #warm start
