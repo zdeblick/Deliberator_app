@@ -148,6 +148,16 @@
             color: #5a2d2d;
         }
 
+        .critiques-header.factual {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .critiques-header.disputed {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+
         .critique {
             margin-bottom: 10px;
             padding: 8px;
@@ -716,13 +726,6 @@
             <button class="btn" onclick="showArgumentModal()">Add Argument</button>
             <button class="btn" onclick="showCritiqueModal()">Add Critique</button>
             <button class="btn" onclick="showRatingModal()">Rate Statement</button>
-            <button class="btn btn-secondary" onclick="manualReposition()">Reposition All</button>
-        </div>
-
-        <div class="dynamic-positioning-info">
-            <span class="icon">🔄</span>
-            <strong>Dynamic Positioning:</strong> Arguments are automatically positioned based on ratings and relationships. 
-            Positions may change as new content and ratings are added to improve organization and highlight connections.
         </div>
 
         <div class="prompt-bubble">
@@ -832,19 +835,6 @@
                                     <span class="critique-type-indicator opposing-other"></span>
                                     Opposing (other)
                                 </label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="position-selector">
-                        <label><strong>This critique:</strong></label>
-                        <div class="position-options">
-                            <div class="position-option">
-                                <input type="radio" name="critiquePosition" value="0" id="supporting" checked>
-                                <label for="supporting">Supports the argument</label>
-                            </div>
-                            <div class="position-option">
-                                <input type="radio" name="critiquePosition" value="1" id="attacking">
-                                <label for="attacking">Attacks the argument</label>
                             </div>
                         </div>
                     </div>
@@ -1375,7 +1365,7 @@
                     } else {
                         // Convert argument to plain text to work with critique positions
                         const plainText = stripHtmlTags(panel.argument);
-
+                        
                         // Create an array of all plain text positions with their critique indices
                         const positions = new Array(plainText.length).fill(null).map(() => []);
                         
@@ -1423,7 +1413,6 @@
 
                     const headerInfo = getCritiqueHeaderInfo(critiqueData, columnIndex);
 
-
                     // Always create left critiques section
                     const leftCritiquesSection = document.createElement('div');
                     leftCritiquesSection.className = 'critiques-section left';
@@ -1448,7 +1437,6 @@
 
                             const textNode = document.createElement('div');
                             textNode.innerHTML = critique[0]; // Allow HTML content for links
-
                             critiqueDiv.appendChild(textNode);
 
                             const authorNode = document.createElement('div');
@@ -1502,7 +1490,6 @@
                         const sortedRightCritiques = [...headerInfo.right.critiques].sort((a, b) => a.index - b.index);
                         
                         sortedRightCritiques.forEach(({critique, index: critiqueIndex}) => {
-
                             const critiqueDiv = document.createElement('div');
                             critiqueDiv.className = `critique ${getCritiqueTypeClass(critique)}`;
 
@@ -1721,7 +1708,6 @@
                 const option = document.createElement('option');
                 option.value = index;
                 option.textContent = COLUMN_HEADERS[index] || `Column ${index + 1}`;
-
                 columnSelect.appendChild(option);
             });
             
@@ -1893,7 +1879,6 @@
                     supporting = false; 
                     reFactuality = false;
             }
-
             
             // Show loading state
             showBackendLoading('Submitting critique...', 'Backend may be starting up - this can take 20-50 seconds');
@@ -1916,7 +1901,6 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(requestBody)
-
                 });
 
                 if (response.ok) {
@@ -2116,7 +2100,6 @@
             }, 3000);
         }
 
-
         // Close modals when clicking outside
         window.onclick = function(event) {
             const argumentModal = document.getElementById('argumentModal');
@@ -2140,4 +2123,3 @@
     </script>
 </body>
 </html>
-
