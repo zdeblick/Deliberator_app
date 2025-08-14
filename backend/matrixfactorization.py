@@ -12,7 +12,7 @@ class ModelData:
     statement_indexes: Optional[torch.IntTensor]
 
 class MatrixFactorization(nn.Module):
-    def __init__(self, n_users, n_statements, n_factors=1, init_params=None):
+    def __init__(self, n_users, n_statements, n_factors=1, init_params=None, include_user_intercept=True):
         super().__init__()
         # Initialize user and statement embedding matrices
         self.user_factors = nn.Embedding(n_users, n_factors)
@@ -26,6 +26,8 @@ class MatrixFactorization(nn.Module):
         torch.nn.init.xavier_uniform_(self.user_factors.weight)
         torch.nn.init.xavier_uniform_(self.statement_factors.weight)
         self.user_intercepts.weight.data.fill_(0.0)
+        if not include_user_intercept:
+            self.user_intercepts.requires_grad_(False)
         self.statement_intercepts.weight.data.fill_(0.0)
         self.global_intercept = torch.nn.parameter.Parameter(torch.zeros(1, 1, dtype=torch.float32))
 
@@ -59,7 +61,7 @@ class MatrixFactorization(nn.Module):
         return (self.global_intercept + user_intercept + statement_intercept + dot_product).squeeze()
 
 def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n_users=None, n_statements=None, n_factors=1, lr=0.01, n_epochs=200, 
-                             reg_factors=0.06, reg_intercepts=0.3, init_params=None):
+                             reg_factors=0.06, reg_intercepts=0.3, init_params=None, include_user_intercept=True):
     """
     Train matrix factorization model with intercepts using ModelData format
     
@@ -79,7 +81,7 @@ def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n
         n_statements = np.max(statement_indexes)+1
                                  
     # Initialize model
-    model = MatrixFactorization(n_users, n_statements, n_factors, init_params=init_params)
+    model = MatrixFactorization(n_users, n_statements, n_factors, init_params=init_params,include_user_intercept=include_user_intercept)
     data = ModelData(torch.FloatTensor(rating_labels).squeeze().to(model.device), 
                            torch.IntTensor(user_indexes).squeeze().to(model.device),
                            torch.IntTensor(statement_indexes).squeeze().to(model.device))

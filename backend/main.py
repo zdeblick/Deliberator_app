@@ -133,7 +133,8 @@ async def init_database():
                 end_ind INTEGER NOT NULL,
                 author VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                category_index INTEGER NOT NULL DEFAULT 0,
+                re_factuality BOOLEAN NOT NULL DEFAULT FALSE,
+                supporting_crit BOOLEAN NOT NULL DEFAULT FALSE,
                 in_category_pos INTEGER NOT NULL DEFAULT 0
             )
         ''')
@@ -162,10 +163,10 @@ async def init_database():
         panel_count = await conn.fetchval('SELECT COUNT(*) FROM arguments')
         if panel_count == 0:
             sample_panels = [
-                ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
-                ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech', 0, 1),
-                ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy', 1, 0),
-                ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture', 2, 0)
+                # ('Climate change is primarily caused by human activities such as burning fossil fuels, deforestation, and industrial processes. The scientific consensus is overwhelming.', 'Dr. Climate', 0, 0),
+                # ('Renewable energy sources like solar and wind are becoming increasingly cost-effective and reliable alternatives to fossil fuels.', 'GreenTech', 0, 1),
+                # ('Universal healthcare systems provide better outcomes at lower costs compared to privatized systems, as evidenced by countries like Canada and the UK.', 'HealthPolicy', 1, 0),
+                # ('Artificial intelligence will revolutionize education by providing personalized learning experiences tailored to individual student needs.', 'EdTechFuture', 2, 0)
             ]
             
             for argument, author, col_idx, pos in sample_panels:
@@ -190,11 +191,11 @@ async def convert_to_frontend_format():
         panels_query = '''
             SELECT 
                 a.argument_id, a.argument, a.author, a.column_index,
-                c.critique_id, c.text as critique_text, c.category_index,
+                c.critique_id, c.text as critique_text, c.supporting_crit, c.re_factuality,
                 c.start_ind, c.end_ind, c.author as critique_author
             FROM arguments a
             LEFT JOIN critiques c ON a.argument_id = c.argument_id
-            ORDER BY a.column_index, a.position_in_column, c.category_index, c.in_category_pos
+            ORDER BY a.column_index, a.position_in_column, c.supporting_crit, c.in_category_pos
         '''
         
         rows = await conn.fetch(panels_query)
@@ -221,7 +222,8 @@ async def convert_to_frontend_format():
                     row['end_ind'],
                     row['critique_author'],
                     row['critique_id'],
-                    row['category_index']
+                    row['supporting_crit'],
+                    row['re_factuality']
                 ])
 
         return columns
@@ -242,7 +244,8 @@ class NewCritique(BaseModel):
     start_ind: int
     end_ind: int
     author: str
-    position: int
+    supporting: bool
+    re_factuality: bool
 
 class NewRating(BaseModel):
     statement_id: int  # id for argument or critique
@@ -344,18 +347,18 @@ async def add_critique(new_crit: NewCritique):
             RETURNING id
         ''')
         
-        category_index = min(panel['column_index'],1) if new_crit.position==0 else 1-min(panel['column_index'],1)
+        # supporting_crit = min(panel['column_index'],1) if new_crit.supporting else 1-min(panel['column_index'],1)
         next_pos = await conn.fetchval('''
             SELECT COALESCE(MAX(in_category_pos), -1)
             FROM critiques
-            WHERE argument_id = $1 AND category_index = $2
-        ''', new_crit.argument_id, category_index)
+            WHERE argument_id = $1 AND supporting_crit = $2
+        ''', new_crit.argument_id, new_crit.supporting)
         
         # Insert critique with the statement_id
         await conn.execute('''
-            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, category_index, in_category_pos)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip(),category_index,next_pos)
+            INSERT INTO critiques (critique_id, argument_id, text, start_ind, end_ind, author, supporting_crit, in_category_pos, re_factuality)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ''', statement_id, new_crit.argument_id, new_crit.critique_text, new_crit.start_ind, new_crit.end_ind, new_crit.author.strip(),new_crit.supporting,next_pos, new_crit.re_factuality)
     
     return {"message": "Critique added successfully"}
 
@@ -435,11 +438,10 @@ async def add_rating(new_rating: NewRating):
             
             statement_cols = np.select(condlist,np.arange(num_columns),default=np.nan)
             mask = user_clusters[user_indexes]==statement_clusters[statement_indexes]  #ratings where users rated statements in their corresponding category
-            quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask], n_users=n_users,n_statements=n_statements)
+            quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask], n_users=n_users,n_statements=n_statements,include_user_intercept=False)
             intercepts = quality_model.statement_intercepts.weight.detach().numpy().squeeze()
             is_rated = np.isin(np.arange(intercepts.size),statement_indexes[mask])
             statement_quality = np.where(is_rated,intercepts,-1e6)
-
 
             rows = await conn.fetch('SELECT argument_id FROM arguments')
             argument_ids = [row['argument_id'] for row in rows]
@@ -449,23 +451,22 @@ async def add_rating(new_rating: NewRating):
             for col in range(num_columns):
                 position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col])
 
-            rows = await conn.fetch('SELECT critique_id, argument_id FROM critiques')
-            critique_ids = [r['critique_id'] for r in rows]
-            critique_cols = statement_cols[np.array(critique_ids)]
-            critique_quality = statement_quality[np.array(critique_ids)]
+            rows = await conn.fetch('SELECT critique_id, argument_id, supporting_crit FROM critiques')
+            critique_ids = np.array([r['critique_id'] for r in rows])
+            supporting_crit = np.array([r['supporting_crit'] for r in rows])
+            critique_quality = statement_quality[critique_ids]
             parent_ids = [r['argument_id'] for r in rows]
-            in_category_pos = np.nan*np.ones_like(critique_cols)
-            category_index = np.nan*np.ones_like(critique_cols)
+            in_category_pos = np.nan*np.ones_like(supporting_crit)
             
             for parent_id in np.unique(parent_ids):
-                # assenting critiques
-                mask = (parent_ids==parent_id) & (critique_cols==statement_cols[parent_id])
+                # supporting critiques
+                mask = (parent_ids==parent_id) & supporting_crit
                 in_category_pos[mask] = np.argsort(-critique_quality[mask])
-                category_index[mask] = 1*(statement_cols[parent_id]==1) # put critiques on the side towards the column they're associated with
-                # dissenting critiques
-                mask = (parent_ids==parent_id) & (critique_cols!=statement_cols[parent_id])
+                # opposing critiques
+                mask = (parent_ids==parent_id) & (~supporting_crit)
                 in_category_pos[mask] = np.argsort(-critique_quality[mask])
-                category_index[mask] = 1-1*(statement_cols[parent_id]==1)
+
+            print(in_category_pos)
 
             await conn.executemany('''
                     UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
@@ -473,17 +474,17 @@ async def add_rating(new_rating: NewRating):
     
             await conn.executemany('''
                     UPDATE statements SET factor = $1, intercept = $2 WHERE id = $3
-                ''', [(factor, intercept, id) for (factor, intercept, id) in zip(statement_factors,statement_intercepts,range(statement_factors.size))])
+                ''', [(factor, intercept, s_id) for (factor, intercept, s_id) in zip(statement_factors,statement_intercepts,range(statement_factors.size))])
             
             await conn.executemany('''
                     UPDATE arguments SET column_index = $1, position_in_column = $2 WHERE argument_id = $3
-                ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,range(position_in_column.size))])
+                ''', [(col, pos, argument_id) for (col, pos, argument_id) in zip(argument_cols,position_in_column,argument_ids)])
     
             await conn.executemany('''
-                    UPDATE critiques SET category_index = $1, in_category_pos = $2 WHERE critique_id = $3
-                ''', [(cat, pos, critique_id) for (cat, pos, critique_id) in zip(category_index,in_category_pos,range(in_category_pos.size))])
+                    UPDATE critiques SET in_category_pos = $1 WHERE critique_id = $2
+                ''', [(pos, critique_id) for (pos, critique_id) in zip(in_category_pos,critique_ids)])
 
-    
+
     response = {"message": "Rating added successfully"}
     if repositioned:
         response["repositioned"] = True
