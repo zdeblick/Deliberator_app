@@ -518,7 +518,7 @@ async def get_user_ratings(author: str):
         
         return user_ratings
 
-@app.get("/health")
+@app.head("/health")
 async def health_check():
     return {"status": "ok"}
 
