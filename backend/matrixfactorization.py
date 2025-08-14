@@ -49,6 +49,8 @@ class MatrixFactorization(nn.Module):
     
     def forward(self, data: ModelData):
         # Get embeddings for users and statements
+        print('data', np.max(data.user_indexes.detach().numpy()))
+        
         user_embedding = self.user_factors(data.user_indexes)
         statement_embedding = self.statement_factors(data.statement_indexes)
         
@@ -79,6 +81,8 @@ def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n
         n_users = np.max(user_indexes)+1
     if n_statements is None:
         n_statements = np.max(statement_indexes)+1
+
+    print('assigned',n_users,n_statements)
                                  
     # Initialize model
     model = MatrixFactorization(n_users, n_statements, n_factors, init_params=init_params,include_user_intercept=include_user_intercept)
@@ -86,6 +90,10 @@ def train_matrix_factorization(rating_labels, user_indexes, statement_indexes, n
                            torch.IntTensor(user_indexes).squeeze().to(model.device),
                            torch.IntTensor(statement_indexes).squeeze().to(model.device))
     optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    for name, param in model.named_parameters():
+        print(f"Name: {name}")
+        print(f"  Shape: {param.shape}"))
     
     # Training loop
     losses = []
