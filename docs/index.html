@@ -1048,59 +1048,46 @@
                     const currentCritiques = textIndex < positions.length ? positions[textIndex] : [];
                     
                     if (currentCritiques.length === 0) {
-                        // No highlights for this character, find all consecutive non-highlighted chars
-                        let endTextIndex = textIndex;
-                        let endHtmlIndex = htmlIndex;
-                        
-                        while (endTextIndex < plainText.length && 
-                               endHtmlIndex < htmlString.length &&
-                               (endTextIndex >= positions.length || positions[endTextIndex].length === 0)) {
-                            
-                            if (htmlString[endHtmlIndex] === '<') {
-                                // Skip HTML tag
-                                while (endHtmlIndex < htmlString.length && htmlString[endHtmlIndex] !== '>') {
-                                    endHtmlIndex++;
-                                }
-                                endHtmlIndex++;
-                            } else {
-                                endTextIndex++;
-                                endHtmlIndex++;
-                            }
-                        }
-                        
-                        result += htmlString.substring(htmlIndex, endHtmlIndex);
-                        htmlIndex = endHtmlIndex;
-                        textIndex = endTextIndex;
+                        // No highlights for this character
+                        result += htmlString[htmlIndex];
+                        htmlIndex++;
+                        textIndex++;
                     } else {
-                        // This character has highlights, find all consecutive chars with the same critique set
-                        let endTextIndex = textIndex;
-                        let endHtmlIndex = htmlIndex;
+                        // This character needs highlighting
+                        // Find all consecutive chars with the same critique set
+                        let segmentStart = htmlIndex;
+                        let segmentTextStart = textIndex;
                         
-                        while (endTextIndex < plainText.length && 
-                               endHtmlIndex < htmlString.length &&
-                               endTextIndex < positions.length &&
-                               positions[endTextIndex].length === currentCritiques.length &&
-                               positions[endTextIndex].every(idx => currentCritiques.includes(idx))) {
+                        // Helper function to compare critique arrays
+                        const critiquesMatch = (critiques1, critiques2) => {
+                            return critiques1.length === critiques2.length && 
+                                   critiques1.every(idx => critiques2.includes(idx));
+                        };
+                        
+                        // Build the highlighted segment, but break at HTML tag boundaries
+                        let segmentHtml = '';
+                        
+                        while (textIndex < positions.length && 
+                               htmlIndex < htmlString.length &&
+                               critiquesMatch(positions[textIndex], currentCritiques)) {
                             
-                            if (htmlString[endHtmlIndex] === '<') {
-                                // If we encounter an HTML tag, include it but don't advance textIndex
-                                while (endHtmlIndex < htmlString.length && htmlString[endHtmlIndex] !== '>') {
-                                    endHtmlIndex++;
-                                }
-                                endHtmlIndex++;
+                            if (htmlString[htmlIndex] === '<') {
+                                // We've hit an HTML tag - end this highlight segment here
+                                break;
                             } else {
-                                endTextIndex++;
-                                endHtmlIndex++;
+                                // Regular text character
+                                segmentHtml += htmlString[htmlIndex];
+                                textIndex++;
+                                htmlIndex++;
                             }
                         }
                         
-                        // Create the highlighted span with all critique indices
+                        // Create the highlighted span
                         const critiqueIndices = currentCritiques.join(',');
-                        const textToHighlight = htmlString.substring(htmlIndex, endHtmlIndex);
-                        result += `<span class="highlighted-text" data-panel-id="${panelId}" data-critique-index="${critiqueIndices}">${textToHighlight}</span>`;
+                        result += `<span class="highlighted-text" data-panel-id="${panelId}" data-critique-index="${critiqueIndices}">${segmentHtml}</span>`;
                         
-                        htmlIndex = endHtmlIndex;
-                        textIndex = endTextIndex;
+                        // Continue processing - if there are more characters with the same critiques
+                        // after HTML tags, they'll be handled in subsequent iterations
                     }
                 }
             }
