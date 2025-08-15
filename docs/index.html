@@ -770,12 +770,9 @@
                 </div>
                 <div class="form-group">
                     <label for="argumentText">Argument:</label>
-                    <div style="position: relative;">
-                        <div id="argumentText" contenteditable="true" class="editable-content" placeholder="Enter your argument... Select text and click 'Add Link' to include hyperlinks" required></div>
-                        <button type="button" id="argumentLinkBtn" class="btn" style="position: absolute; top: 5px; right: 5px; padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('argumentText')" disabled>Add Link</button>
-                    </div>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        Select text and click "Add Link" to add hyperlinks
+                    <div id="argumentText" contenteditable="true" class="editable-content" placeholder="Enter your argument... Select text and click 'Add Link' to include hyperlinks" required></div>
+                    <div style="margin-top: 8px;">
+                        <button type="button" id="argumentLinkBtn" class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('argumentText')" disabled>Add Link</button>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -797,10 +794,8 @@
                 <form onsubmit="submitCritique(event)">
                     <div class="form-group">
                         <label for="critiqueText">Critique:</label>
-                        <div style="position: relative;">
-                            <div id="critiqueText" contenteditable="true" class="editable-content" placeholder="Enter your critique... Select text and click 'Add Link' to include hyperlinks" required></div>
-                            <button type="button" id="critiqueLinkBtn" class="btn" style="position: absolute; top: 5px; right: 5px; padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('critiqueText')" disabled>Add Link</button>
-                        </div>
+                        <div id="critiqueText" contenteditable="true" class="editable-content" placeholder="Enter your critique... Select text and click 'Add Link' to include hyperlinks" required></div>
+                        <button type="button" id="critiqueLinkBtn" class="btn" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('critiqueText')" disabled>Add Link</button>
                         <div style="font-size: 12px; color: #666; margin-top: 5px;">
                             Select text and click "Add Link" to add hyperlinks
                         </div>
