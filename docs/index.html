@@ -718,7 +718,8 @@
         <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Deliberator</h1>
         
         <div class="dynamic-positioning-info">
-            Add new arguments, critique existing ones, and rate arguments and critiques (including your own). <br>
+            Add new arguments, critique existing ones, and rate arguments and critiques (including your own).<br>
+            You may choose an appropriate column for new arguments, but they will be reorganized based on ratings.<br>
             If the site is not working for you or you would like to give any feedback, you can reach me at daniel@zdeblick.com
         </div>
         
@@ -726,6 +727,7 @@
             <button class="btn" onclick="showArgumentModal()">Add Argument</button>
             <button class="btn" onclick="showCritiqueModal()">Add Critique</button>
             <button class="btn" onclick="showRatingModal()">Rate Statement</button>
+            <button class="btn" onclick="manualRefresh()">Refresh</button>
         </div>
 
         <div class="prompt-bubble">
@@ -951,8 +953,8 @@
 
 
     <script>
-        // const API_BASE = 'http://localhost:8000';
-        const API_BASE = 'https://deliberator-app.onrender.com';
+        const API_BASE = 'http://localhost:8000';
+        // const API_BASE = 'https://deliberator-app.onrender.com';
 
         let data = [];
         let selectedText = null;
@@ -1955,9 +1957,16 @@
             }
         }
 
-        // Manual reposition function (placeholder - you may need to implement this based on your backend)
-        async function manualReposition() {
-            showStatusMessage('Manual repositioning not yet implemented', 'warning');
+        // Manual refresh function to reload data from backend
+        async function manualRefresh() {
+            showStatusMessage('Refreshing data...', 'warning');
+            try {
+                await loadData();
+                showStatusMessage('Data refreshed successfully!', 'success');
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                showStatusMessage('Failed to refresh data. Please try again.', 'error');
+            }
         }
 
         // Hyperlink functions
