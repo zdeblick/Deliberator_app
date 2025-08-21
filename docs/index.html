@@ -718,8 +718,8 @@
         <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Deliberator</h1>
         
         <div class="dynamic-positioning-info">
-            Add new arguments, critique existing ones, and rate arguments and critiques (including your own).<br>
-            You may choose an appropriate column for new arguments, but they will be reorganized based on ratings.<br>
+            Add new arguments, critique existing ones, and rate arguments and critiques (including your own). <br>
+            You may choose an appropriate column for new arguments, but they will be reorganized based on ratings. <br>
             If the site is not working for you or you would like to give any feedback, you can reach me at daniel@zdeblick.com
         </div>
         
@@ -731,7 +731,7 @@
         </div>
 
         <div class="prompt-bubble">
-            Is AI more of a threat or an asset when it comes to generating vs finding and eliminating misinformation?
+            Is AI more of a threat by generating misinformation or an asset by finding and eliminating it?
         </div>
 
         <div class="columns" id="columns">
@@ -798,39 +798,36 @@
                         <label for="critiqueText">Critique:</label>
                         <div id="critiqueText" contenteditable="true" class="editable-content" placeholder="Enter your critique... Select text and click 'Add Link' to include hyperlinks" required></div>
                         <button type="button" id="critiqueLinkBtn" class="btn" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('critiqueText')" disabled>Add Link</button>
-                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                            Select text and click "Add Link" to add hyperlinks
-                        </div>
                     </div>
                     <div class="position-selector">
-                        <label><strong>This critique is:</strong></label>
+                        <label><strong>This part of the argument is:</strong></label>
                         <div class="position-options">
                             <div class="position-option">
                                 <input type="radio" name="critiquePosition" value="factual_claim" id="factualClaim" checked>
                                 <label for="factualClaim">
                                     <span class="critique-type-indicator factual-claim"></span>
-                                    Factual claim
+                                    A true, factual claim
                                 </label>
                             </div>
                             <div class="position-option">
                                 <input type="radio" name="critiquePosition" value="factual_disputed" id="factualDisputed">
                                 <label for="factualDisputed">
                                     <span class="critique-type-indicator factual-disputed"></span>
-                                    Presented as fact, but isn't
+                                    Presented as a fact, but it isn't
                                 </label>
                             </div>
                             <div class="position-option">
                                 <input type="radio" name="critiquePosition" value="supporting_other" id="supportingOther">
                                 <label for="supportingOther">
                                     <span class="critique-type-indicator supporting-other"></span>
-                                    Supporting (other)
+                                    Good
                                 </label>
                             </div>
                             <div class="position-option">
                                 <input type="radio" name="critiquePosition" value="opposing_other" id="opposingOther">
                                 <label for="opposingOther">
                                     <span class="critique-type-indicator opposing-other"></span>
-                                    Opposing (other)
+                                    Bad
                                 </label>
                             </div>
                         </div>
@@ -953,8 +950,8 @@
 
 
     <script>
-        const API_BASE = 'http://localhost:8000';
-        // const API_BASE = 'https://deliberator-app.onrender.com';
+        // const API_BASE = 'http://localhost:8000';
+        const API_BASE = 'https://deliberator-app.onrender.com';
 
         let data = [];
         let selectedText = null;
