@@ -390,7 +390,7 @@ async def add_rating(new_rating: NewRating):
                 LEFT JOIN users u ON r.author = u.username
             ''')
             a_ratings = np.array([(row['agreement_rating']-4)/3 for row in rows])    # scale to [-1,1]
-            q_ratings = np.array([(row['quality_rating'])/3 for row in rows])        # scale to [-1,1]
+            q_ratings = np.array([(row['quality_rating']-4)/3 for row in rows])        # scale to [-1,1]
             user_indexes = np.array([row['user_id'] for row in rows])              
             statement_indexes = np.array([row['statement_id'] for row in rows]) 
 
@@ -426,8 +426,8 @@ async def add_rating(new_rating: NewRating):
             condlist = [statement_clusters==majority, statement_clusters==minority, np.isnan(statement_clusters)]
             
             statement_cols = np.select(condlist,np.arange(num_columns),default=np.nan)
-            mask = user_clusters[user_indexes]==statement_clusters[statement_indexes]  #ratings where users rated statements in their corresponding category
-            quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask], n_users=n_users,n_statements=n_statements,include_user_intercept=False)
+            mask = (user_clusters[user_indexes]==statement_clusters[statement_indexes]) #ratings where users rated statements in their corresponding category
+            quality_model, _  = train_matrix_factorization(q_ratings[mask], user_indexes[mask], statement_indexes[mask], n_users=n_users,n_statements=n_statements,include_user_intercept=False)#,reg_intercepts=0.06,reg_factors=0.3)
             intercepts = quality_model.statement_intercepts.weight.detach().numpy().squeeze()
             is_rated = np.isin(np.arange(intercepts.size),statement_indexes[mask])
             statement_quality = np.where(is_rated,intercepts,-1e6)
@@ -438,22 +438,22 @@ async def add_rating(new_rating: NewRating):
             argument_quality = statement_quality[np.array(argument_ids)]
             position_in_column = np.nan*np.ones_like(argument_cols)
             for col in range(num_columns):
-                position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col])
+                position_in_column[argument_cols==col] = np.argsort(-argument_quality[argument_cols==col]).argsort()
 
             rows = await conn.fetch('SELECT critique_id, argument_id, supporting_crit FROM critiques')
             critique_ids = np.array([r['critique_id'] for r in rows])
             supporting_crit = np.array([r['supporting_crit'] for r in rows])
             critique_quality = statement_quality[critique_ids]
-            parent_ids = [r['argument_id'] for r in rows]
+            parent_ids = np.array([r['argument_id'] for r in rows])
             in_category_pos = np.nan*np.ones_like(supporting_crit)
             
             for parent_id in np.unique(parent_ids):
                 # supporting critiques
                 mask = (parent_ids==parent_id) & supporting_crit
-                in_category_pos[mask] = np.argsort(-critique_quality[mask])
+                in_category_pos[mask] = np.argsort(-critique_quality[mask]).argsort()
                 # opposing critiques
                 mask = (parent_ids==parent_id) & (~supporting_crit)
-                in_category_pos[mask] = np.argsort(-critique_quality[mask])
+                in_category_pos[mask] = np.argsort(-critique_quality[mask]).argsort()
 
             await conn.executemany('''
                     UPDATE users SET factor = $1, intercept = $2 WHERE user_id = $3
