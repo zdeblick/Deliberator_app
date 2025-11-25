@@ -1,0 +1,2114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deliberator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .prompt-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .columns {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
+
+        .column {
+            min-width: 600px;
+            background-color: #e8e8e8;
+            border-radius: 8px;
+            padding: 5px;
+        }
+
+        .column-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            padding: 10px;
+            background-color: #d0d0d0;
+            border-radius: 5px;
+        }
+
+        .panel {
+            background-color: white;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            padding: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            min-height: 200px;
+        }
+
+        .argument-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .argument-text {
+            line-height: 1.6;
+            cursor: default;
+        }
+
+        .argument-text a {
+            color: #007acc;
+            text-decoration: underline;
+        }
+
+        .argument-text a:hover {
+            color: #0056b3;
+        }
+
+        .argument-section.selected {
+            background-color: #e3f2fd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: -5px;
+        }
+
+        .author-text {
+            font-size: 12px;
+            cursor: default;
+            margin-top: 10px;
+        }
+
+        .critiques-section {
+            flex: 1;
+            padding: 10px;
+        }
+
+        .critiques-section.left {
+            order: -1;
+            border-right: 2px solid #eee;
+            padding-right: 10px;
+        }
+
+        .critiques-section.right {
+            border-left: 2px solid #eee;
+            padding-left: 10px;
+        }
+
+        .critiques-container {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 5px;
+            background-color: #fafafa;
+        }
+
+        .critiques-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            padding: 5px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .critiques-header.supporting {
+            background-color: #d4f8d4;
+            color: #2d5a2d;
+        }
+
+        .critiques-header.opposing {
+            background-color: #f8d4d4;
+            color: #5a2d2d;
+        }
+
+        .critiques-header.factual {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .critiques-header.disputed {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+
+        .critique {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border-left: 3px solid #007acc;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .critique a {
+            color: #007acc;
+            text-decoration: underline;
+        }
+
+        .critique a:hover {
+            color: #0056b3;
+        }
+
+        .critique:hover {
+            background-color: #e6f3ff;
+            border-left-color: #0056b3;
+            box-shadow: 0 2px 8px rgba(0,122,204,0.3);
+        }
+
+        .critique.selected {
+            background-color: #e3f2fd;
+            border-left-color: #1976d2;
+            box-shadow: 0 2px 8px rgba(25,118,210,0.4);
+        }
+
+        .no-critiques {
+            font-style: italic;
+            color: #666;
+            text-align: center;
+            padding: 20px 10px;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .highlighted-text {
+            background-color: #fff3cd;
+            border-radius: 2px;
+            padding: 0;
+            transition: all 0.2s ease;
+        }
+
+        .highlighted-text.glow {
+            background-color: #ffd966;
+            box-shadow: 0 0 8px rgba(255,193,7,0.6);
+        }
+
+        .critique.glow {
+            background-color: #e6f3ff;
+            border-left-color: #0056b3;
+            box-shadow: 0 2px 8px rgba(0,122,204,0.3);
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .critique-modal .modal-content {
+            display: flex;
+            gap: 20px;
+        }
+
+        .critique-form-section {
+            flex: 1;
+        }
+
+        .argument-preview-section {
+            flex: 1;
+            border-left: 2px solid #ddd;
+            padding-left: 20px;
+        }
+
+        .argument-preview {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .login-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+
+        .login-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .user-info {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background-color: #007acc;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            z-index: 1000;
+        }
+
+        .dynamic-positioning-info {
+            background-color: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 5px;
+            text-align: center;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .dynamic-positioning-info .icon {
+            display: inline-block;
+            margin-right: 5px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .repositioned-notice {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .rating-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        .rating-label {
+            font-weight: bold;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        .rating-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rating-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .rating-option input[type="radio"] {
+            margin-bottom: 5px;
+        }
+
+        .rating-option label {
+            font-size: 11px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .statement-preview {
+            background-color: #e3f2fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .modal-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-actions {
+            text-align: right;
+            margin-top: 20px;
+        }
+
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007acc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-message {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .loading-submessage {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .selection-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 1500;
+            max-width: 400px;
+        }
+
+        .status-message.status-error {
+            background-color: #dc3545;
+        }
+
+        .status-message.status-warning {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        .status-message.status-success {
+            background-color: #28a745;
+        }
+
+        .position-selector {
+            margin-bottom: 15px;
+        }
+
+        .position-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .position-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .position-option input[type="radio"] {
+            margin: 0;
+        }
+
+        .position-option label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .critique-type-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 5px;
+        }
+
+        .critique-type-indicator.factual-claim {
+            background-color: #2196f3;
+        }
+
+        .critique-type-indicator.factual-disputed {
+            background-color: #ff9800;
+        }
+
+        .critique-type-indicator.supporting-other {
+            background-color: #4caf50;
+        }
+
+        .critique-type-indicator.opposing-other {
+            background-color: #f44336;
+        }
+
+        .textarea-container {
+            position: relative;
+        }
+
+        .link-preview {
+            position: absolute;
+            background: rgba(0, 122, 204, 0.1);
+            border: 1px solid #007acc;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .textarea-with-links {
+            font-family: monospace;
+            line-height: 1.4;
+        }
+
+        .link-indicator {
+            background-color: #e3f2fd;
+            border-bottom: 2px solid #2196f3;
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .editable-content {
+            width: 100%;
+            min-height: 150px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: inherit;
+            line-height: 1.4;
+            overflow-y: auto;
+            background: white;
+            resize: vertical;
+        }
+
+        .editable-content:focus {
+            outline: none;
+            border-color: #007acc;
+            box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+        }
+
+        .editable-content[placeholder]:empty::before {
+            content: attr(placeholder);
+            color: #999;
+        }
+
+        .editable-content a {
+            color: #007acc;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .editable-content a:hover {
+            color: #0056b3;
+        }
+
+        #critiqueText.editable-content {
+            min-height: 80px;
+        }
+
+        .critique.factual-true {
+            border-left-color: #2196f3;
+            background-color: #e3f2fd;
+        }
+
+        .critique.factual-false {
+            border-left-color: #ff9800;
+            background-color: #fff3e0;
+        }
+
+        .critique.factual-true:hover {
+            background-color: #bbdefb;
+            border-left-color: #1976d2;
+            box-shadow: 0 2px 8px rgba(33,150,243,0.3);
+        }
+
+        .critique.factual-false:hover {
+            background-color: #ffcc02;
+            border-left-color: #f57c00;
+            box-shadow: 0 2px 8px rgba(255,152,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-content">
+            <h2 style="margin-bottom: 20px;">Welcome to Deliberator</h2>
+            <div id="loginError"></div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password (optional for new accounts):</label>
+                    <input type="password" id="password">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="createAccount"> Create new account
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn">Login / Sign Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Info Display -->
+    <div id="userInfo" class="user-info" style="display: none;">
+        Logged in as: <span id="currentUser"></span>
+    </div>
+
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 10px; color: #333;">Deliberator</h1>
+        
+        <div class="dynamic-positioning-info">
+            Add new arguments, critique existing ones, and rate arguments and critiques (including your own). <br>
+            You may choose an appropriate column for new arguments, but they will be reorganized based on ratings. <br>
+            If the site is not working for you or you would like to give any feedback, you can reach me at daniel@zdeblick.com
+        </div>
+        
+        <div class="controls">
+            <button class="btn" onclick="showArgumentModal()">Add Argument</button>
+            <button class="btn" onclick="showCritiqueModal()">Add Critique</button>
+            <button class="btn" onclick="showRatingModal()">Rate Statement</button>
+            <button class="btn" onclick="manualRefresh()">Refresh</button>
+        </div>
+
+        <div class="prompt-bubble">
+            Is AI more of a threat by generating misinformation or an asset by finding and eliminating it?
+        </div>
+
+        <div class="columns" id="columns">
+            <!-- Columns will be dynamically populated -->
+        </div>
+
+        <div id="statusMessage" class="status-message" style="display: none;"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-message" id="loadingMessage">Connecting to server...</div>
+            <div class="loading-submessage" id="loadingSubmessage">This may take a moment</div>
+        </div>
+    </div>
+
+    <!-- Add Argument Modal -->
+    <div id="argumentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('argumentModal')">&times;</span>
+            <div class="modal-header">Add New Argument</div>
+            
+            <div class="dynamic-positioning-info">
+                <span class="icon">🎯</span>
+                Your argument will be automatically positioned based on our dynamic algorithm. 
+                Position may change as new ratings and content are added.
+            </div>
+            
+            <div id="argumentError"></div>
+            <form onsubmit="submitArgument(event)">
+                <div class="form-group">
+                    <label for="columnSelect">Column:</label>
+                    <select id="columnSelect" required>
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="argumentText">Argument:</label>
+                    <div id="argumentText" contenteditable="true" class="editable-content" placeholder="Enter your argument... Select text and click 'Add Link' to include hyperlinks" required></div>
+                    <div style="margin-top: 8px;">
+                        <button type="button" id="argumentLinkBtn" class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('argumentText')" disabled>Add Link</button>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('argumentModal')">Cancel</button>
+                    <button type="submit" class="btn">Add Argument</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Critique Modal -->
+    <div id="critiqueModal" class="modal critique-modal">
+        <div class="modal-content">
+            <div class="critique-form-section">
+                <span class="close" onclick="closeCritiqueModal()">&times;</span>
+                <div class="modal-header">Add New Critique</div>
+                <div id="critiqueError"></div>
+                <div id="selectionInfo" class="selection-info" style="display: none;"></div>
+                <form onsubmit="submitCritique(event)">
+                    <div class="form-group">
+                        <label for="critiqueText">Critique:</label>
+                        <div id="critiqueText" contenteditable="true" class="editable-content" placeholder="Enter your critique... Select text and click 'Add Link' to include hyperlinks" required></div>
+                        <button type="button" id="critiqueLinkBtn" class="btn" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;" onclick="openHyperlinkDialog('critiqueText')" disabled>Add Link</button>
+                    </div>
+                    <div class="position-selector">
+                        <label><strong>This part of the argument is:</strong></label>
+                        <div class="position-options">
+                            <div class="position-option">
+                                <input type="radio" name="critiquePosition" value="factual_claim" id="factualClaim" checked>
+                                <label for="factualClaim">
+                                    <span class="critique-type-indicator factual-claim"></span>
+                                    A true, factual claim
+                                </label>
+                            </div>
+                            <div class="position-option">
+                                <input type="radio" name="critiquePosition" value="factual_disputed" id="factualDisputed">
+                                <label for="factualDisputed">
+                                    <span class="critique-type-indicator factual-disputed"></span>
+                                    Presented as a fact, but it isn't
+                                </label>
+                            </div>
+                            <div class="position-option">
+                                <input type="radio" name="critiquePosition" value="supporting_other" id="supportingOther">
+                                <label for="supportingOther">
+                                    <span class="critique-type-indicator supporting-other"></span>
+                                    Good
+                                </label>
+                            </div>
+                            <div class="position-option">
+                                <input type="radio" name="critiquePosition" value="opposing_other" id="opposingOther">
+                                <label for="opposingOther">
+                                    <span class="critique-type-indicator opposing-other"></span>
+                                    Bad
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCritiqueModal()">Cancel</button>
+                        <button type="submit" class="btn">Add Critique</button>
+                    </div>
+                </form>
+            </div>
+            <div class="argument-preview-section">
+                <div class="modal-header">Argument Being Critiqued</div>
+                <div id="argumentPreview" class="argument-preview">
+                    Select text from an argument first.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rate Statement Modal -->
+    <div id="ratingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRatingModal()">&times;</span>
+            <div class="modal-header">Rate Statement</div>
+            <div id="ratingError"></div>
+            <div id="statementPreview" class="statement-preview" style="display: none;"></div>
+            <form onsubmit="submitRating(event)">
+                <div class="rating-grid">
+                    <div class="rating-label">This statement is written:</div>
+                    <div class="rating-options">
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="1" id="quality1" required>
+                            <label for="quality1">Very Poorly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="2" id="quality2">
+                            <label for="quality2">Poorly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="3" id="quality3">
+                            <label for="quality3">Not Well</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="4" id="quality4">
+                            <label for="quality4">Intelligibly</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="5" id="quality5">
+                            <label for="quality5">Adequately</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="6" id="quality6">
+                            <label for="quality6">Well</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="quality" value="7" id="quality7">
+                            <label for="quality7">Very Well</label>
+                        </div>
+                    </div>
+                    
+                    <div class="rating-label">With this statement, I:</div>
+                    <div class="rating-options">
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="1" id="agreement1" required>
+                            <label for="agreement1">Strongly Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="2" id="agreement2">
+                            <label for="agreement2">Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="3" id="agreement3">
+                            <label for="agreement3">Somewhat Disagree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="4" id="agreement4">
+                            <label for="agreement4">am Neutral</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="5" id="agreement5">
+                            <label for="agreement5">Somewhat Agree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="6" id="agreement6">
+                            <label for="agreement6">Agree</label>
+                        </div>
+                        <div class="rating-option">
+                            <input type="radio" name="agreement" value="7" id="agreement7">
+                            <label for="agreement7">Strongly Agree</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeRatingModal()">Cancel</button>
+                    <button type="submit" class="btn">Submit Rating</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hyperlink Dialog -->
+    <div id="hyperlinkDialog" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeHyperlinkDialog()">&times;</span>
+            <div class="modal-header">Add Hyperlink</div>
+            <div class="form-group">
+                <label for="linkText">Link Text:</label>
+                <input type="text" id="linkText" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="linkUrl">URL:</label>
+                <input type="url" id="linkUrl" class="form-control" placeholder="https://example.com">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeHyperlinkDialog()">Cancel</button>
+                <button type="button" class="btn" onclick="insertHyperlink()">Add Link</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        // const API_BASE = 'https://deliberator-app.onrender.com';
+
+        let data = [];
+        let selectedText = null;
+        let currentUser = null;
+        let selectedStatement = null;
+
+        const COLUMN_HEADERS = [
+            "Majority arguments",
+            "Minority arguments", 
+            "Unsorted arguments"
+            // Add more headers as needed
+        ];
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show login screen first
+            document.getElementById('loginContainer').style.display = 'flex';
+        });
+
+        function stripHtmlTags(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
+        }
+
+        function findTextPositionInHtml(htmlString, plainTextPosition, selectedLength) {
+            // Convert HTML to plain text to find the actual character positions
+            const plainText = stripHtmlTags(htmlString);
+            const selectedText = plainText.substr(plainTextPosition, selectedLength);
+            
+            // Find the position by walking through the HTML and tracking character positions
+            let htmlIndex = 0;
+            let textIndex = 0;
+            let startHtmlIndex = -1;
+            let endHtmlIndex = -1;
+            
+            while (htmlIndex < htmlString.length && textIndex <= plainTextPosition + selectedLength) {
+                if (htmlString[htmlIndex] === '<') {
+                    // Skip HTML tag
+                    while (htmlIndex < htmlString.length && htmlString[htmlIndex] !== '>') {
+                        htmlIndex++;
+                    }
+                    htmlIndex++; // Skip the '>'
+                } else {
+                    if (textIndex === plainTextPosition && startHtmlIndex === -1) {
+                        startHtmlIndex = htmlIndex;
+                    }
+                    if (textIndex === plainTextPosition + selectedLength && endHtmlIndex === -1) {
+                        endHtmlIndex = htmlIndex;
+                        break;
+                    }
+                    textIndex++;
+                    htmlIndex++;
+                }
+            }
+            
+            return {
+                startIndex: startHtmlIndex !== -1 ? startHtmlIndex : plainTextPosition,
+                endIndex: endHtmlIndex !== -1 ? endHtmlIndex : plainTextPosition + selectedLength,
+                plainTextStart: plainTextPosition,
+                plainTextEnd: plainTextPosition + selectedLength
+            };
+        }
+
+
+        function highlightTextInHtml(htmlString, positions, panelId) {
+            // If no positions to highlight, return original HTML
+            if (positions.every(pos => pos.length === 0)) {
+                return htmlString;
+            }
+            
+            const plainText = stripHtmlTags(htmlString);
+            let result = '';
+            let htmlIndex = 0;
+            let textIndex = 0;
+            
+            while (htmlIndex < htmlString.length) {
+                if (htmlString[htmlIndex] === '<') {
+                    // Copy HTML tag as-is
+                    const tagStart = htmlIndex;
+                    while (htmlIndex < htmlString.length && htmlString[htmlIndex] !== '>') {
+                        htmlIndex++;
+                    }
+                    htmlIndex++; // Include the '>'
+                    result += htmlString.substring(tagStart, htmlIndex);
+                } else {
+                    // This is a text character
+                    const currentCritiques = textIndex < positions.length ? positions[textIndex] : [];
+                    
+                    if (currentCritiques.length === 0) {
+                        // No highlights for this character
+                        result += htmlString[htmlIndex];
+                        htmlIndex++;
+                        textIndex++;
+                    } else {
+                        // This character needs highlighting
+                        // Find all consecutive chars with the same critique set
+                        let segmentStart = htmlIndex;
+                        let segmentTextStart = textIndex;
+                        
+                        // Helper function to compare critique arrays
+                        const critiquesMatch = (critiques1, critiques2) => {
+                            return critiques1.length === critiques2.length && 
+                                   critiques1.every(idx => critiques2.includes(idx));
+                        };
+                        
+                        // Build the highlighted segment, but break at HTML tag boundaries
+                        let segmentHtml = '';
+                        
+                        while (textIndex < positions.length && 
+                               htmlIndex < htmlString.length &&
+                               critiquesMatch(positions[textIndex], currentCritiques)) {
+                            
+                            if (htmlString[htmlIndex] === '<') {
+                                // We've hit an HTML tag - end this highlight segment here
+                                break;
+                            } else {
+                                // Regular text character
+                                segmentHtml += htmlString[htmlIndex];
+                                textIndex++;
+                                htmlIndex++;
+                            }
+                        }
+                        
+                        // Create the highlighted span
+                        const critiqueIndices = currentCritiques.join(',');
+                        result += `<span class="highlighted-text" data-panel-id="${panelId}" data-critique-index="${critiqueIndices}">${segmentHtml}</span>`;
+                        
+                        // Continue processing - if there are more characters with the same critiques
+                        // after HTML tags, they'll be handled in subsequent iterations
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const createAccount = document.getElementById('createAccount').checked;
+            
+            // Show loading state
+            showBackendLoading('Logging in...', 'Backend may be starting up - this can take 20-50 seconds');
+            
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password || null,
+                        create_account: createAccount
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    currentUser = username;
+                    
+                    // Hide loading and login screen and show main app
+                    hideBackendLoading();
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('userInfo').style.display = 'block';
+                    document.getElementById('currentUser').textContent = currentUser;
+                    
+                    // Load the main data
+                    await loadData();
+                } else {
+                    hideBackendLoading();
+                    const error = await response.json();
+                    document.getElementById('loginError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                hideBackendLoading();
+                console.error('Error during login:', error);
+                document.getElementById('loginError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
+            }
+        }
+
+        function addMutualHoverHighlight(el1, el2) {
+          const add = () => {
+            el1.classList.add('glow');
+            el2.classList.add('glow');
+          };
+          const remove = () => {
+            el1.classList.remove('glow');
+            el2.classList.remove('glow');
+          };
+          el1.addEventListener('mouseenter', add);
+          el1.addEventListener('mouseleave', remove);
+          el2.addEventListener('mouseenter', add);
+          el2.addEventListener('mouseleave', remove);
+        }
+
+        function showBackendLoading(message, submessage) {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const loadingSubmessage = document.getElementById('loadingSubmessage');
+            
+            loadingMessage.textContent = message;
+            loadingSubmessage.textContent = submessage;
+            loadingOverlay.style.display = 'flex';
+            
+            // Disable all interactive elements
+            document.body.style.pointerEvents = 'none';
+            loadingOverlay.style.pointerEvents = 'all';
+        }
+
+        function hideBackendLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.body.style.pointerEvents = 'all';
+        }
+
+        function clearAllSelections() {
+            // Clear argument selections
+            document.querySelectorAll('.argument-section.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Clear critique selections
+            document.querySelectorAll('.critique.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+        }
+
+        function showStatusMessage(message, type = 'success', duration = 5000) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.className = `status-message status-${type}`;
+            statusMessage.textContent = message;
+            statusMessage.style.display = 'block';
+            
+            if (duration > 0) {
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, duration);
+            }
+        }
+
+        async function loadData() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const loadingSubmessage = document.getElementById('loadingSubmessage');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Show loading overlay
+            loadingOverlay.style.display = 'flex';
+            statusMessage.style.display = 'none';
+            
+            const startTime = Date.now();
+            let coldStartWarningShown = false;
+            
+            // Show cold start warning after 3 seconds
+            const coldStartTimer = setTimeout(() => {
+                if (!coldStartWarningShown) {
+                    loadingMessage.textContent = 'Backend is starting up...';
+                    loadingSubmessage.textContent = 'Render services can take up to 50 seconds to wake up from sleep. Please be patient!';
+                    coldStartWarningShown = true;
+                }
+            }, 3000);
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+                
+                const response = await fetch(`${API_BASE}/data`, {
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                clearTimeout(coldStartTimer);
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
+                data = await response.json();
+                loadingOverlay.style.display = 'none';
+                
+                // Show success message if it was a slow load
+                const loadTime = Date.now() - startTime;
+                if (loadTime > 5000) {
+                    showStatusMessage(`Connected successfully! (took ${Math.round(loadTime/1000)} seconds)`, 'warning');
+                }
+                
+                renderColumns();
+                
+            } catch (error) {
+                clearTimeout(coldStartTimer);
+                loadingOverlay.style.display = 'none';
+                
+                console.error('Error loading data:', error);
+                
+                let errorMessage = 'Unable to connect to the server. ';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage += 'The request timed out after 60 seconds. The server may be experiencing issues.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Please check that the backend is running and accessible.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                const statusMessage = document.getElementById('statusMessage');
+                statusMessage.className = 'status-message status-error';
+                statusMessage.innerHTML = `
+                    ${errorMessage}
+                    <br><br>
+                    <button class="btn" onclick="loadData()" style="margin-top: 10px;">Try Again</button>
+                `;
+                statusMessage.style.display = 'block';
+            }
+        }
+
+        function getCritiqueTypeClass(critique) {
+            // Check if critique[6] exists (is_factual/reFactuality field)
+            if (critique.length > 6 && critique[6] !== null && critique[6] !== undefined) {
+                const reFactuality = critique[6];
+                
+                if (reFactuality === true) {
+                    return 'factual-true';
+                } else {
+                    return 'factual-false';
+                }
+            } else {
+                // Fallback to old behavior if reFactuality field is not present
+                const categoryIndex = critique[5];
+                return categoryIndex === 0 ? 'supporting-other' : 'opposing-other';
+            }
+        }
+
+        function getCritiqueHeaderInfo(critiques, columnIndex) {
+            const supportingClaims = (critiques.filter(c => c.critique[5] === true));
+            const opposingClaims = (critiques.filter(c => c.critique[5] === false));
+            
+            let leftCritiques = [], rightCritiques = [];
+            
+            if (columnIndex === 0) {
+                // Column 0: supporting types on left, opposing on right
+                leftCritiques = supportingClaims;
+                rightCritiques = opposingClaims;
+            } else {
+                // Other columns: opposing types on left, supporting on right
+                leftCritiques = opposingClaims;
+                rightCritiques = supportingClaims;
+            }
+            
+            // Determine header classes (keep simple for now)
+            const leftHeaderClass = columnIndex === 0 ? 'supporting' : 'opposing';
+            const rightHeaderClass = columnIndex === 0 ? 'opposing' : 'supporting';
+
+            const leftHeaderText = columnIndex === 0 ? 'Supporting' : 'Opposing';
+            const rightHeaderText = columnIndex === 0 ? 'Opposing' : 'Supporting';
+            
+            return {
+                left: { critiques: leftCritiques, headerText: leftHeaderText, headerClass: leftHeaderClass },
+                right: { critiques: rightCritiques, headerText: rightHeaderText, headerClass: rightHeaderClass }
+            };
+        }
+
+        function renderColumns() {
+            const columnsContainer = document.getElementById('columns');
+            columnsContainer.innerHTML = '';
+
+            data.forEach((column, columnIndex) => {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'column';
+                
+                const header = document.createElement('div');
+                header.className = 'column-header';
+                header.textContent = COLUMN_HEADERS[columnIndex] || `Column ${columnIndex + 1}`;
+                columnDiv.appendChild(header);
+
+                column.forEach((panel, panelIndex) => {
+                    const panelDiv = document.createElement('div');
+                    panelDiv.className = 'panel';
+                    panelDiv.dataset.columnIndex = columnIndex;
+                    panelDiv.dataset.panelIndex = panelIndex;
+
+                    // Argument section
+                    const argumentSection = document.createElement('div');
+                    argumentSection.className = 'argument-section';
+
+                    let result = '';
+
+                    if (panel.critiques.length === 0) {
+                        result = panel.argument;
+                    } else {
+                        // Convert argument to plain text to work with critique positions
+                        const plainText = stripHtmlTags(panel.argument);
+                        
+                        // Create an array of all plain text positions with their critique indices
+                        const positions = new Array(plainText.length).fill(null).map(() => []);
+                        
+                        // Mark which characters belong to which critiques (based on plain text positions)
+                        panel.critiques.forEach((critique, critiqueIndex) => {
+                            const [, start, end, , , ] = critique;
+                            for (let i = start; i < end && i < plainText.length; i++) {
+                                positions[i].push(critiqueIndex);
+                            }
+                        });
+
+                        // Build the result by applying highlights to the original HTML
+                        // We'll need to carefully insert highlight spans while preserving HTML structure
+                        result = highlightTextInHtml(panel.argument, positions, panel.argument_id);
+                    }
+
+                    const argumentText = document.createElement('div');
+                    argumentText.className = 'argument-text';
+                    argumentText.innerHTML = result;
+                    
+                    const argumentAuthor = document.createElement('div');
+                    argumentAuthor.className = 'argument-author';
+                    argumentAuthor.innerHTML = `<span class="author-text"> ~  ${panel.author}</span>`;
+
+                    // Add click listener for rating functionality
+                    argumentSection.addEventListener('click', function(e) {
+                        clearAllSelections();
+                        argumentSection.classList.add('selected');
+                        
+                        selectedStatement = {
+                            type: 'argument',
+                            text: panel.argument,
+                            statement_id: panel.argument_id
+                        };
+                    });
+                    
+                    argumentSection.appendChild(argumentText);
+                    argumentSection.appendChild(argumentAuthor);
+
+                    // Create critique data preserving original order
+                    const critiqueData = [];
+                    panel.critiques.forEach((critique, index) => {
+                        critiqueData.push({critique, index});
+                    });
+
+                    const headerInfo = getCritiqueHeaderInfo(critiqueData, columnIndex);
+
+                    // Always create left critiques section
+                    const leftCritiquesSection = document.createElement('div');
+                    leftCritiquesSection.className = 'critiques-section left';
+                    
+                    const leftHeader = document.createElement('div');
+                    leftHeader.className = `critiques-header ${headerInfo.left.headerClass}`;
+                    leftHeader.textContent = headerInfo.left.headerText;
+                    leftCritiquesSection.appendChild(leftHeader);
+                    
+                    const leftCritiquesContainer = document.createElement('div');
+                    leftCritiquesContainer.className = 'critiques-container';
+                    
+                    if (headerInfo.left.critiques.length === 0) {
+                        leftCritiquesContainer.innerHTML = `<div class="no-critiques">No ${headerInfo.left.headerText.toLowerCase()} critiques yet</div>`;
+                    } else {
+                        // Sort left critiques by original index to maintain order
+                        const sortedLeftCritiques = [...headerInfo.left.critiques].sort((a, b) => a.index - b.index);
+                        
+                        sortedLeftCritiques.forEach(({critique, index: critiqueIndex}) => {
+                            const critiqueDiv = document.createElement('div');
+                            critiqueDiv.className = `critique ${getCritiqueTypeClass(critique)}`;
+
+                            const textNode = document.createElement('div');
+                            textNode.innerHTML = critique[0]; // Allow HTML content for links
+                            critiqueDiv.appendChild(textNode);
+
+                            const authorNode = document.createElement('div');
+                            authorNode.className = 'author-text';
+                            authorNode.textContent = `~ ${critique[3]}`;
+                            critiqueDiv.appendChild(authorNode);
+
+                            critiqueDiv.dataset.columnIndex = columnIndex;
+                            critiqueDiv.dataset.panelIndex = panelIndex;
+                            critiqueDiv.dataset.critiqueIndex = critiqueIndex;
+
+                            // Add click listener for rating functionality  
+                            critiqueDiv.addEventListener('click', function() {
+                                clearAllSelections();
+                                critiqueDiv.classList.add('selected');
+                                
+                                selectedStatement = {
+                                    type: 'critique',
+                                    argument_id: panel.argument_id,
+                                    text: critique[0],
+                                    statement_id: critique[4]
+                                };
+                            });
+                            
+                            leftCritiquesContainer.appendChild(critiqueDiv);
+                        });
+                    }
+                    
+                    leftCritiquesSection.appendChild(leftCritiquesContainer);
+                    panelDiv.appendChild(leftCritiquesSection);
+
+                    // Add the argument section (this stays the same)
+                    panelDiv.appendChild(argumentSection);
+
+                    // Always create right critiques section
+                    const rightCritiquesSection = document.createElement('div');
+                    rightCritiquesSection.className = 'critiques-section right';
+                    
+                    const rightHeader = document.createElement('div');
+                    rightHeader.className = `critiques-header ${headerInfo.right.headerClass}`;
+                    rightHeader.textContent = headerInfo.right.headerText;
+                    rightCritiquesSection.appendChild(rightHeader);
+
+                    const rightCritiquesContainer = document.createElement('div');
+                    rightCritiquesContainer.className = 'critiques-container';
+
+                    if (headerInfo.right.critiques.length === 0) {
+                        rightCritiquesContainer.innerHTML = `<div class="no-critiques">No ${headerInfo.right.headerText.toLowerCase()} critiques yet</div>`;
+                    } else {
+                        // Sort right critiques by original index to maintain order
+                        const sortedRightCritiques = [...headerInfo.right.critiques].sort((a, b) => a.index - b.index);
+                        
+                        sortedRightCritiques.forEach(({critique, index: critiqueIndex}) => {
+                            const critiqueDiv = document.createElement('div');
+                            critiqueDiv.className = `critique ${getCritiqueTypeClass(critique)}`;
+
+                            const textNode = document.createElement('div');
+                            textNode.innerHTML = critique[0]; // Allow HTML content for links
+                            critiqueDiv.appendChild(textNode);
+
+                            const authorNode = document.createElement('div');
+                            authorNode.className = 'author-text';
+                            authorNode.textContent = `~ ${critique[3]}`;
+                            critiqueDiv.appendChild(authorNode);
+
+                            critiqueDiv.dataset.columnIndex = columnIndex;
+                            critiqueDiv.dataset.panelIndex = panelIndex;
+                            critiqueDiv.dataset.critiqueIndex = critiqueIndex;
+
+                            // Add click listener for rating functionality  
+                            critiqueDiv.addEventListener('click', function() {
+                                clearAllSelections();
+                                critiqueDiv.classList.add('selected');
+                                
+                                selectedStatement = {
+                                    type: 'critique',
+                                    argument_id: panel.argument_id,
+                                    text: critique[0],
+                                    statement_id: critique[4]
+                                };
+                            });
+                            
+                            rightCritiquesContainer.appendChild(critiqueDiv);
+                        });
+                    }
+
+                    rightCritiquesSection.appendChild(rightCritiquesContainer);
+                    panelDiv.appendChild(rightCritiquesSection);
+
+                    // Set up mutual highlighting for critiques
+                    panel.critiques.forEach((critique,critiqueIndex) => {
+                        const critiqueDiv = panelDiv.querySelector(`[data-critique-index="${critiqueIndex}"]`);
+                        
+                        // Find all highlight spans that contain this critique index
+                        const textSpans = argumentText.querySelectorAll(`.highlighted-text`);
+                        const spansForThisCritique = [];
+                        textSpans.forEach(span => {
+                            const critiqueIndices = span.dataset.critiqueIndex.split(',').map(idx => parseInt(idx));
+                            if (critiqueIndices.includes(critiqueIndex)) {
+                                spansForThisCritique.push(span);
+                            }
+                        });
+                        
+                        // Add hover listeners that highlight all spans for this critique
+                        if (critiqueDiv && spansForThisCritique.length > 0) {
+                            const addGlow = () => {
+                                critiqueDiv.classList.add('glow');
+                                spansForThisCritique.forEach(span => span.classList.add('glow'));
+                            };
+                            const removeGlow = () => {
+                                critiqueDiv.classList.remove('glow');
+                                spansForThisCritique.forEach(span => span.classList.remove('glow'));
+                            };
+                            
+                            // Add listeners to critique div
+                            critiqueDiv.addEventListener('mouseenter', addGlow);
+                            critiqueDiv.addEventListener('mouseleave', removeGlow);
+                            
+                            // Add listeners to all spans for this critique
+                            spansForThisCritique.forEach(span => {
+                                span.addEventListener('mouseenter', addGlow);
+                                span.addEventListener('mouseleave', removeGlow);
+                            });
+                        }
+                    });
+
+                    columnDiv.appendChild(panelDiv);
+                });
+
+                columnsContainer.appendChild(columnDiv);
+            });
+        }
+
+        // Add event listeners for text highlighting
+        document.addEventListener('mouseup', function(e) {
+            // Small delay to ensure selection is complete
+            setTimeout(handleTextSelection, 10);
+        });
+
+        function handleTextSelection() {
+            const selection = window.getSelection();
+            
+            if (selection.rangeCount === 0) {
+                return;
+            }
+            
+            const selectedString = selection.toString().trim();
+            
+            if (selectedString === '') {
+                return;
+            }
+
+            // Find which panel this selection belongs to
+            const range = selection.getRangeAt(0);
+            
+            // Get all panels and check which one contains the selection
+            const panels = document.querySelectorAll('.panel');
+            let targetPanel = null;
+            let targetColumnIndex = -1;
+            let targetPanelIndex = -1;
+            
+            for (let panel of panels) {
+                const argumentSection = panel.querySelector('.argument-section');
+                if (argumentSection) {
+                    // Check if the selection is within this argument section
+                    try {
+                        if (argumentSection.contains(range.startContainer) || 
+                            argumentSection.contains(range.endContainer) ||
+                            range.intersectsNode(argumentSection)) {
+                            targetPanel = panel;
+                            targetColumnIndex = parseInt(panel.dataset.columnIndex);
+                            targetPanelIndex = parseInt(panel.dataset.panelIndex);
+                            break;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+            
+            if (!targetPanel || targetColumnIndex === -1 || targetPanelIndex === -1) {
+                return;
+            }
+            
+            // Get the argument_id for the new backend structure
+            const panelId = data[targetColumnIndex][targetPanelIndex].argument_id;
+            
+            // Get the original text
+            if (!data[targetColumnIndex] || !data[targetColumnIndex][targetPanelIndex]) {
+                return;
+            }
+            
+            const originalText = data[targetColumnIndex][targetPanelIndex].argument;
+            
+            // Convert original HTML to plain text for position mapping
+            const originalPlainText = stripHtmlTags(originalText);
+            const argumentTextElement = targetPanel.querySelector('.argument-text');
+            const displayPlainText = argumentTextElement.textContent || argumentTextElement.innerText;
+            
+            // Find where our selected text appears in the display plain text
+            const displayPosition = displayPlainText.indexOf(selectedString);
+            
+            if (displayPosition !== -1) {
+                // Map this position back to the original HTML
+                const positions = findTextPositionInHtml(originalText, displayPosition, selectedString.length);
+                
+                selectedText = {
+                    columnIndex: targetColumnIndex,
+                    panelIndex: targetPanelIndex,
+                    panelId: panelId,
+                    text: selectedString,
+                    startIndex: positions.plainTextStart,
+                    endIndex: positions.plainTextEnd
+                };
+                
+                // Visual feedback - highlight the selected text briefly
+                showSelectionFeedback();
+                return;
+            }
+            
+            // Fallback: try to find in plain text version
+            const plainTextPosition = originalPlainText.indexOf(selectedString);
+            if (plainTextPosition !== -1) {
+                selectedText = {
+                    columnIndex: targetColumnIndex,
+                    panelIndex: targetPanelIndex,
+                    panelId: panelId,
+                    text: selectedString,
+                    startIndex: plainTextPosition,
+                    endIndex: plainTextPosition + selectedString.length
+                };
+                
+                showSelectionFeedback();
+                return;
+            }
+        }
+
+        function showSelectionFeedback() {
+            // Create a temporary visual indicator
+            const feedback = document.createElement('div');
+            feedback.innerHTML = `✓ Selected: "${selectedText.text}"`;
+            feedback.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 1000;
+                font-size: 14px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            `;
+            
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+                if (feedback.parentNode) {
+                    feedback.parentNode.removeChild(feedback);
+                }
+            }, 2000);
+        }
+
+        function populateColumnSelector() {
+            const columnSelect = document.getElementById('columnSelect');
+            columnSelect.innerHTML = '';
+            
+            data.forEach((column, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = COLUMN_HEADERS[index] || `Column ${index + 1}`;
+                columnSelect.appendChild(option);
+            });
+            
+            // Default to last column
+            if (data.length > 0) {
+                columnSelect.value = data.length - 1;
+            }
+        }
+
+        function showArgumentModal() {
+            populateColumnSelector();
+            document.getElementById('argumentModal').style.display = 'block';
+            document.getElementById('argumentError').innerHTML = '';
+            setTimeout(setupTextareaListeners, 100); //for hyperlinking
+        }
+
+        function showCritiqueModal() {
+            if (!selectedText) {
+                alert('Please select text from an argument first to add a critique.');
+                return;
+            }
+
+            document.getElementById('critiqueModal').style.display = 'block';
+            document.getElementById('critiqueError').innerHTML = '';
+            
+            const selectionInfo = document.getElementById('selectionInfo');
+            selectionInfo.style.display = 'block';
+            selectionInfo.innerHTML = `Selected text: "${selectedText.text}" (Column ${selectedText.columnIndex + 1}, Panel ${selectedText.panelIndex + 1})`;
+            
+            // Show the full argument in the preview
+            const fullArgument = data[selectedText.columnIndex][selectedText.panelIndex].argument;
+            const plainTextVersion = stripHtmlTags(fullArgument);
+            const beforeSelection = plainTextVersion.substring(0, selectedText.startIndex);
+            const selection = plainTextVersion.substring(selectedText.startIndex, selectedText.endIndex);
+            const afterSelection = plainTextVersion.substring(selectedText.endIndex);
+            
+            argumentPreview.innerHTML = `${beforeSelection}<span style="background-color: #ffeaa7; padding: 1px 2px; border-radius: 2px;">${selection}</span>${afterSelection}`;
+
+            setTimeout(setupTextareaListeners, 100); //for hyperlinking
+        }
+
+        function showRatingModal() {
+            if (!selectedStatement) {
+                alert('Please click on an argument or critique first to rate it.');
+                return;
+            }
+
+            document.getElementById('ratingModal').style.display = 'block';
+            document.getElementById('ratingError').innerHTML = '';
+            
+            const statementPreview = document.getElementById('statementPreview');
+            statementPreview.style.display = 'block';
+            statementPreview.innerHTML = `<strong>${selectedStatement.type === 'argument' ? 'Argument' : 'Critique'}:</strong> "${selectedStatement.text}"`;
+            
+            // Clear previous ratings
+            document.querySelectorAll('input[name="quality"]').forEach(input => input.checked = false);
+            document.querySelectorAll('input[name="agreement"]').forEach(input => input.checked = false);
+        }
+
+        function closeRatingModal() {
+            document.getElementById('ratingModal').style.display = 'none';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            if (modalId === 'argumentModal') {
+                const argumentElement = document.getElementById('argumentText');
+                if (argumentElement.innerHTML !== undefined) {
+                    argumentElement.innerHTML = '';
+                } else {
+                    argumentElement.value = '';
+                }
+            }
+        }
+
+        function closeCritiqueModal() {
+            document.getElementById('critiqueModal').style.display = 'none';
+            document.getElementById('selectionInfo').style.display = 'none';
+            
+            const critiqueElement = document.getElementById('critiqueText');
+            if (critiqueElement.innerHTML !== undefined) {
+                critiqueElement.innerHTML = '';
+            } else {
+                critiqueElement.value = '';
+            }
+            
+            window.getSelection().removeAllRanges();
+            selectedText = null;
+        }
+
+        async function submitArgument(event) {
+            event.preventDefault();
+            
+            const argumentText = document.getElementById('argumentText').innerHTML.trim();
+            const columnIndex = parseInt(document.getElementById('columnSelect').value);
+            
+            // Show loading state
+            showBackendLoading('Submitting argument...', 'Your argument will be automatically positioned');
+            
+            try {
+                const response = await fetch(`${API_BASE}/argument`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        argument: argumentText,
+                        author: currentUser,
+                        column_index: columnIndex
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    hideBackendLoading();
+                    closeModal('argumentModal');
+                    document.getElementById('argumentText').value = '';
+                    
+                    if (result.repositioned) {
+                        showStatusMessage('Argument added and positions updated!', 'success');
+                    } else {
+                        showStatusMessage('Argument added successfully!', 'success');
+                    }
+                    
+                    await loadData();
+                } else {
+                    hideBackendLoading();
+                    const error = await response.json();
+                    document.getElementById('argumentError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                hideBackendLoading();
+                console.error('Error submitting argument:', error);
+                document.getElementById('argumentError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
+            }
+        }
+
+        async function submitCritique(event) {
+            event.preventDefault();
+            
+            if (!selectedText) {
+                document.getElementById('critiqueError').innerHTML = '<div class="error">No text selected</div>';
+                return;
+            }
+            
+            const critiqueText = document.getElementById('critiqueText').innerHTML.trim();
+            const positionValue = document.querySelector('input[name="critiquePosition"]:checked').value;
+            
+            // Map the new position values to backend format
+            let supporting, reFactuality;
+            switch(positionValue) {
+                case 'factual_claim':
+                    supporting = true; 
+                    reFactuality = true;
+                    break;
+                case 'factual_disputed':
+                    supporting = false; 
+                    reFactuality = true;
+                    break;
+                case 'supporting_other':
+                    supporting = true; 
+                    reFactuality = false;
+                    break;
+                case 'opposing_other':
+                    supporting = false; 
+                    reFactuality = false;
+                    break;
+                default:
+                    supporting = false; 
+                    reFactuality = false;
+            }
+            
+            // Show loading state
+            showBackendLoading('Submitting critique...', 'Backend may be starting up - this can take 20-50 seconds');
+            
+            try {
+                const requestBody = {
+                    argument_id: selectedText.panelId,
+                    critique_text: critiqueText,
+                    start_ind: selectedText.startIndex,
+                    end_ind: selectedText.endIndex,
+                    author: currentUser,
+                    supporting: supporting,
+                    re_factuality: reFactuality
+                };
+            
+                
+                const response = await fetch(`${API_BASE}/critique`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (response.ok) {
+                    hideBackendLoading();
+                    closeCritiqueModal();
+                    document.getElementById('critiqueText').value = '';
+                    showStatusMessage('Critique added successfully!', 'success');
+                    await loadData();
+                } else {
+                    hideBackendLoading();
+                    const error = await response.json();
+                    document.getElementById('critiqueError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                hideBackendLoading();
+                console.error('Error submitting critique:', error);
+                document.getElementById('critiqueError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
+            }
+        }
+
+        async function submitRating(event) {
+            event.preventDefault();
+            
+            if (!selectedStatement) {
+                document.getElementById('ratingError').innerHTML = '<div class="error">No statement selected</div>';
+                return;
+            }
+            
+            const qualityRating = parseInt(document.querySelector('input[name="quality"]:checked').value);
+            const agreementRating = parseInt(document.querySelector('input[name="agreement"]:checked').value);
+            
+            // Show loading state
+            showBackendLoading('Submitting rating...', 'The backend is probably just waking up - try again in 50 seconds.');
+            
+            try {
+                const response = await fetch(`${API_BASE}/rating`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        statement_id: selectedStatement.statement_id,
+                        quality_rating: qualityRating,
+                        agreement_rating: agreementRating,
+                        author: currentUser
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    hideBackendLoading();
+                    closeRatingModal();
+                    
+                    if (result.repositioned) {
+                        showStatusMessage('Rating submitted! Arguments repositioned based on new data.', 'success');
+                        await loadData();
+                    } else {
+                        showStatusMessage('Rating submitted successfully!', 'success');
+                        await loadData();
+                    }
+                } else {
+                    hideBackendLoading();
+                    const error = await response.json();
+                    document.getElementById('ratingError').innerHTML = `<div class="error">${error.detail}</div>`;
+                }
+            } catch (error) {
+                hideBackendLoading();
+                console.error('Error submitting rating:', error);
+                document.getElementById('ratingError').innerHTML = '<div class="error">Network error. The backend is probably just waking up - try again in 50 seconds.</div>';
+            }
+        }
+
+        // Manual refresh function to reload data from backend
+        async function manualRefresh() {
+            showStatusMessage('Refreshing data...', 'warning');
+            try {
+                await loadData();
+                showStatusMessage('Data refreshed successfully!', 'success');
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                showStatusMessage('Failed to refresh data. Please try again.', 'error');
+            }
+        }
+
+        // Hyperlink functions
+        function setupTextareaListeners() {
+            const argumentDiv = document.getElementById('argumentText');
+            const critiqueDiv = document.getElementById('critiqueText');
+            
+            if (argumentDiv) {
+                argumentDiv.addEventListener('selectstart', () => setTimeout(() => handleTextareaSelection('argumentText'), 10));
+                argumentDiv.addEventListener('mouseup', () => handleTextareaSelection('argumentText'));
+                argumentDiv.addEventListener('keyup', () => handleTextareaSelection('argumentText'));
+            }
+            
+            if (critiqueDiv) {
+                critiqueDiv.addEventListener('selectstart', () => setTimeout(() => handleTextareaSelection('critiqueText'), 10));
+                critiqueDiv.addEventListener('mouseup', () => handleTextareaSelection('critiqueText'));
+                critiqueDiv.addEventListener('keyup', () => handleTextareaSelection('critiqueText'));
+            }
+        }
+
+        let currentTextareaId = null;
+        let currentSelection = null;
+
+        // Handle text selection in contenteditable divs
+        function handleTextareaSelection(textareaId) {
+            const element = document.getElementById(textareaId);
+            const button = document.getElementById(textareaId === 'argumentText' ? 'argumentLinkBtn' : 'critiqueLinkBtn');
+            
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && selection.toString().trim().length > 0) {
+                const selectedText = selection.toString().trim();
+                
+                // Don't allow linking if selection contains HTML tags or is already a link
+                const range = selection.getRangeAt(0);
+                if (selectedText.includes('<') || selectedText.includes('>') || 
+                    range.commonAncestorContainer.closest?.('a') || 
+                    range.startContainer.parentNode?.tagName === 'A' ||
+                    range.endContainer.parentNode?.tagName === 'A') {
+                    button.disabled = true;
+                    currentSelection = null;
+                    return;
+                }
+                
+                button.disabled = false;
+                currentSelection = {
+                    range: range.cloneRange(),
+                    text: selectedText
+                };
+            } else {
+                button.disabled = true;
+                currentSelection = null;
+            }
+        }
+
+        function openHyperlinkDialog(textareaId) {
+            if (!currentSelection) return;
+            
+            currentTextareaId = textareaId;
+            document.getElementById('linkText').value = currentSelection.text;
+            document.getElementById('linkUrl').value = '';
+            document.getElementById('hyperlinkDialog').style.display = 'block';
+            document.getElementById('linkUrl').focus();
+        }
+
+        function closeHyperlinkDialog() {
+            document.getElementById('hyperlinkDialog').style.display = 'none';
+            currentTextareaId = null;
+            currentSelection = null;
+        }
+
+        function insertHyperlink() {
+            const linkText = document.getElementById('linkText').value.trim();
+            let linkUrl = document.getElementById('linkUrl').value.trim();
+            
+            if (!linkText || !linkUrl || !currentSelection || !currentTextareaId) return;
+            
+            // Fix URL to ensure it's absolute
+            if (!linkUrl.startsWith('http://') && !linkUrl.startsWith('https://')) {
+                linkUrl = 'https://' + linkUrl;
+            }
+            
+            // Create link element with target="_blank"
+            const link = document.createElement('a');
+            link.href = linkUrl;
+            link.textContent = linkText;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            
+            // Replace the selected text with the link
+            const range = currentSelection.range;
+            range.deleteContents();
+            range.insertNode(link);
+            
+            // Clear selection
+            window.getSelection().removeAllRanges();
+            
+            closeHyperlinkDialog();
+            showLinkAddedFeedback(linkText);
+        }
+
+        function showLinkAddedFeedback(linkText) {
+            const feedback = document.createElement('div');
+            feedback.innerHTML = `✓ Link added: "${linkText}"`;
+            feedback.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 2000;
+                font-size: 14px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            `;
+            
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+                if (feedback.parentNode) {
+                    feedback.parentNode.removeChild(feedback);
+                }
+            }, 3000);
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const argumentModal = document.getElementById('argumentModal');
+            const critiqueModal = document.getElementById('critiqueModal');
+            const ratingModal = document.getElementById('ratingModal');
+            const hyperlinkDialog = document.getElementById('hyperlinkDialog');
+            
+            if (event.target === argumentModal) {
+                closeModal('argumentModal');
+            }
+            if (event.target === critiqueModal) {
+                closeCritiqueModal();
+            }
+            if (event.target === ratingModal) {
+                closeRatingModal();
+            }
+            if (event.target === hyperlinkDialog) {
+                closeHyperlinkDialog();
+            }
+        }
+    </script>
+</body>
+</html>
